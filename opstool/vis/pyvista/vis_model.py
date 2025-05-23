@@ -1,22 +1,23 @@
 import warnings
-from typing import Union
+from typing import Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pyvista as pv
 from numpy.linalg import norm
 
+from ...post import load_model_data
+from ...utils import CONSTANTS, gram_schmidt
 from .plot_utils import (
-    _plot_points,
-    _plot_lines,
-    _plot_unstru,
     PLOT_ARGS,
     _get_ele_color,
     _get_line_cells,
     _get_unstru_cells,
+    _plot_lines,
+    _plot_points,
+    _plot_unstru,
 )
-from ...post import load_model_data
-from ...utils import gram_schmidt, CONSTANTS
+
 PKG_NAME = CONSTANTS.get_pkg_name()
 
 
@@ -27,10 +28,10 @@ class PlotModelBase:
         if "tags" in self.nodal_data.coords:
             self.nodal_tags = self.nodal_data.coords["tags"].values
         else:
-            raise ValueError("Model have no nodal data!")
+            raise ValueError("Model have no nodal data!")  # noqa: TRY003
         self.points = self.nodal_data.to_numpy()
         self.ndims = self.nodal_data.attrs["ndims"]
-        self.show_zaxis = False if np.max(self.ndims) <= 2 else True
+        self.show_zaxis = not np.max(self.ndims) <= 2
         self.bounds = self.nodal_data.attrs["bounds"]
         self.min_bound_size = self.nodal_data.attrs["minBoundSize"]
         self.max_bound_size = self.nodal_data.attrs["maxBoundSize"]
@@ -59,9 +60,7 @@ class PlotModelBase:
         self.line_cells, self.line_tags = _get_line_cells(self.line_data)
         # -------------------------------------------------------------
         self.unstru_data = model_info["UnstructuralData"]
-        self.unstru_tags, self.unstru_cell_types, self.unstru_cells = _get_unstru_cells(
-            self.unstru_data
-        )
+        self.unstru_tags, self.unstru_cell_types, self.unstru_cells = _get_unstru_cells(self.unstru_data)
         # -------------------------------------------------------------
         self.pargs = PLOT_ARGS
         pv.set_plot_theme(PLOT_ARGS.theme)
@@ -161,7 +160,7 @@ class PlotModelBase:
                 ele_labels,
                 text_color=self.pargs.color_ele_label,
                 font_size=self.pargs.font_size,
-                point_size=self.pargs.point_size+2,
+                point_size=self.pargs.point_size + 2,
                 bold=True,
                 always_visible=True,
                 shape_opacity=0.0,
@@ -219,40 +218,36 @@ class PlotModelBase:
                 idx = len(points_nonzero)
                 for i in range(5):
                     cells_nonzero.extend([2, idx + i, idx + i + 1])
-                points_nonzero.extend(
-                    [
-                        coord1 + 0.25 * length * xaxis,
-                        coord1 + 0.25 * length * xaxis - 0.25 * length * yaxis,
-                        coord1 + 0.5 * length * xaxis + 0.25 * length * yaxis,
-                        coord1 + 0.5 * length * xaxis - 0.25 * length * yaxis,
-                        coord1 + 0.75 * length * xaxis + 0.25 * length * yaxis,
-                        coord1 + 0.75 * length * xaxis,
-                    ]
-                )
+                points_nonzero.extend([
+                    coord1 + 0.25 * length * xaxis,
+                    coord1 + 0.25 * length * xaxis - 0.25 * length * yaxis,
+                    coord1 + 0.5 * length * xaxis + 0.25 * length * yaxis,
+                    coord1 + 0.5 * length * xaxis - 0.25 * length * yaxis,
+                    coord1 + 0.75 * length * xaxis + 0.25 * length * yaxis,
+                    coord1 + 0.75 * length * xaxis,
+                ])
         if len(points_zero) > 0:
             return _plot_points(
-                    plotter,
-                    np.array(points_zero),
-                    self.pargs.color_link,
-                    self.pargs.point_size * 1.2,
-                )
+                plotter,
+                np.array(points_zero),
+                self.pargs.color_link,
+                self.pargs.point_size * 1.2,
+            )
         if len(points_nonzero) > 0:
             points_nonzero = np.array(points_nonzero)
             return _plot_lines(
-                    plotter,
-                    points_nonzero,
-                    cells_nonzero,
-                    width=self.pargs.line_width / 2,
-                    color=self.pargs.color_link,
-                    render_lines_as_tubes=False,
-                    label="Link",
-                )
+                plotter,
+                points_nonzero,
+                cells_nonzero,
+                width=self.pargs.line_width / 2,
+                color=self.pargs.color_link,
+                render_lines_as_tubes=False,
+                label="Link",
+            )
         return None
 
     @staticmethod
-    def _plot_local_axis(
-        plotter, xaxis, yaxis, zaxis, midpoints, lengths, alpha, labelsize
-    ):
+    def _plot_local_axis(plotter, xaxis, yaxis, zaxis, midpoints, lengths, alpha, labelsize):
         if len(midpoints) > 0:
             length = np.mean(lengths) / 6 * alpha
             _ = plotter.add_arrows(midpoints, xaxis, mag=length, color="#cf6275")
@@ -296,29 +291,29 @@ class PlotModelBase:
         if len(self.link_data) == 0:
             return None
         return self._plot_local_axis(
-                plotter,
-                self.link_data.loc[:, ["xaxis-x", "xaxis-y", "xaxis-z"]].to_numpy(),
-                self.link_data.loc[:, ["yaxis-x", "yaxis-y", "yaxis-z"]].to_numpy(),
-                self.link_data.loc[:, ["zaxis-x", "zaxis-y", "zaxis-z"]].to_numpy(),
-                self.link_data.loc[:, ["xo", "yo", "zo"]].to_numpy(),
-                self.link_data.loc[:, "length"].to_numpy(),
-                alpha,
-                self.pargs.font_size,
-            )
+            plotter,
+            self.link_data.loc[:, ["xaxis-x", "xaxis-y", "xaxis-z"]].to_numpy(),
+            self.link_data.loc[:, ["yaxis-x", "yaxis-y", "yaxis-z"]].to_numpy(),
+            self.link_data.loc[:, ["zaxis-x", "zaxis-y", "zaxis-z"]].to_numpy(),
+            self.link_data.loc[:, ["xo", "yo", "zo"]].to_numpy(),
+            self.link_data.loc[:, "length"].to_numpy(),
+            alpha,
+            self.pargs.font_size,
+        )
 
     def plot_beam_local_axes(self, plotter, alpha: float = 1.0):
         if len(self.beam_data) == 0:
             return None
         return self._plot_local_axis(
-                plotter,
-                self.beam_data.loc[:, ["xaxis-x", "xaxis-y", "xaxis-z"]].to_numpy(),
-                self.beam_data.loc[:, ["yaxis-x", "yaxis-y", "yaxis-z"]].to_numpy(),
-                self.beam_data.loc[:, ["zaxis-x", "zaxis-y", "zaxis-z"]].to_numpy(),
-                self.beam_data.loc[:, ["xo", "yo", "zo"]].to_numpy(),
-                self.beam_data.loc[:, "length"].to_numpy(),
-                alpha,
-                self.pargs.font_size,
-            )
+            plotter,
+            self.beam_data.loc[:, ["xaxis-x", "xaxis-y", "xaxis-z"]].to_numpy(),
+            self.beam_data.loc[:, ["yaxis-x", "yaxis-y", "yaxis-z"]].to_numpy(),
+            self.beam_data.loc[:, ["zaxis-x", "zaxis-y", "zaxis-z"]].to_numpy(),
+            self.beam_data.loc[:, ["xo", "yo", "zo"]].to_numpy(),
+            self.beam_data.loc[:, "length"].to_numpy(),
+            alpha,
+            self.pargs.font_size,
+        )
 
     # def plot_beam_sec(self, plotter, paras):
     #     ext_points = self.MINFO["BeamSecExtPoints"]
@@ -418,15 +413,15 @@ class PlotModelBase:
         xlocal, ylocal, zlocal = np.array(xlocal), np.array(ylocal), np.array(zlocal)
         midpoints, lengths = np.array(midpoints), np.array(lengths)
         return self._plot_local_axis(
-                plotter,
-                xlocal,
-                ylocal,
-                zlocal,
-                midpoints,
-                lengths,
-                alpha,
-                self.pargs.font_size,
-            )
+            plotter,
+            xlocal,
+            ylocal,
+            zlocal,
+            midpoints,
+            lengths,
+            alpha,
+            self.pargs.font_size,
+        )
 
     def plot_node_load(self, plotter, alpha: float = 1.0):
         if len(self.nodal_load_data) == 0:
@@ -446,9 +441,7 @@ class PlotModelBase:
         cmap = plt.get_cmap("winter")
         colors = cmap(np.linspace(0, 1, len(patterntags2)))
         xyzlocals = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
-        geom = pv.Arrow(
-            start=(-1.0, 0, 0), tip_length=0.25, tip_radius=0.1, shaft_radius=0.03
-        )
+        geom = pv.Arrow(start=(-1.0, 0, 0), tip_length=0.25, tip_radius=0.1, shaft_radius=0.03)
         for p, ptag in enumerate(patterntags2):
             idx = np.abs(patterntags - ptag) < 1e-4
             ntags = nodetags[idx]
@@ -460,13 +453,9 @@ class PlotModelBase:
                 ply["vectors"] = np.reshape(xyzlocals[i] * len(coords), (-1, 3))
                 for j in range(len(ply["vectors"])):
                     ply["vectors"][j] *= np.sign(data[j])
-                glyphs = ply.glyph(
-                    orient="vectors", scale="scalars", factor=alpha_, geom=geom
-                )
+                glyphs = ply.glyph(orient="vectors", scale="scalars", factor=alpha_, geom=geom)
                 label = f"Nodal Load: patternTag={ptag}" if i == 0 else None
-                plotter.add_mesh(
-                    glyphs, show_scalar_bar=False, color=colors[p], label=label
-                )
+                plotter.add_mesh(glyphs, show_scalar_bar=False, color=colors[p], label=label)
         return None
 
     def plot_ele_load(self, plotter, alpha: float = 1.0):
@@ -536,9 +525,7 @@ class PlotModelBase:
         alpha_ *= alpha
         cmap = plt.get_cmap("turbo_r")
         colors = cmap(np.linspace(0, 1, len(patterntags2)))
-        geom = pv.Arrow(
-            start=(-0.0, 0, 0), tip_length=0.5, tip_radius=0.2, shaft_radius=0.05
-        )
+        geom = pv.Arrow(start=(-0.0, 0, 0), tip_length=0.5, tip_radius=0.2, shaft_radius=0.05)
         for p, ptag in enumerate(patterntags2):
             idx = np.abs(new_ptags - ptag) < 1e-3
             coords = new_points[idx]
@@ -549,22 +536,15 @@ class PlotModelBase:
                 ply["vectors"] = new_locals[np.ix_(idx, [3 * i, 3 * i + 1, 3 * i + 2])]
                 for j in range(len(ply["vectors"])):
                     ply["vectors"][j] *= np.sign(data[j])
-                glyphs = ply.glyph(
-                    orient="vectors", scale="scalars", factor=1.0, geom=geom
-                )
+                glyphs = ply.glyph(orient="vectors", scale="scalars", factor=1.0, geom=geom)
                 label = f"Element load: patternTag={ptag}" if i == 0 else None
-                plotter.add_mesh(
-                    glyphs, show_scalar_bar=False, color=colors[p], label=label
-                )
+                plotter.add_mesh(glyphs, show_scalar_bar=False, color=colors[p], label=label)
         return None
 
     def plot_mp_constraint(self, plotter, show_dofs=False, points_new=None):
         if len(self.mp_constraint_data) == 0:
             return None
-        if points_new is None:
-            points = self.points
-        else:
-            points = points_new
+        points = self.points if points_new is None else points_new
         cells = self.mp_constraint_data.to_numpy()[:, :3].astype(int)
         dofs = self.mp_constraint_data.to_numpy()[:, -6:].astype(int)
         midcoords = self.mp_constraint_data.to_numpy()[:, 3:6]
@@ -603,11 +583,11 @@ class PlotModelBase:
 
 
 def plot_model(
-    odb_tag: Union[int, str] = None,
+    odb_tag: Optional[Union[int, str]] = None,
     show_node_numbering: bool = False,
     show_ele_numbering: bool = False,
     style: str = "surface",
-    color: str = None,
+    color: Optional[str] = None,
     show_bc: bool = True,
     bc_scale: float = 1.0,
     show_link: bool = True,
@@ -681,7 +661,7 @@ def plot_model(
     `Plotter.export_html <https://docs.pyvista.org/api/plotting/_autosummary/pyvista.plotter.export_html#pyvista.Plotter.export_html>`_.
     to export this plotter as an interactive scene to an HTML file.
     """
-    resave = True if odb_tag is None else False
+    resave = odb_tag is None
     model_info, cells = load_model_data(odb_tag, resave=resave)
     plotbase = PlotModelBase(model_info, cells)
     plotter = pv.Plotter(
@@ -721,9 +701,7 @@ def plot_model(
     if show_legend:
         plotter.add_legend(bcolor=None)
     if PLOT_ARGS.anti_aliasing:
-        plotter.enable_anti_aliasing(
-            PLOT_ARGS.anti_aliasing, multi_samples=PLOT_ARGS.msaa_multi_samples
-        )
+        plotter.enable_anti_aliasing(PLOT_ARGS.anti_aliasing, multi_samples=PLOT_ARGS.msaa_multi_samples)
     return plotbase.update(plotter, cpos)
 
 
@@ -737,82 +715,70 @@ def _get_bc_points_cells(fixed_coords, fixed_dofs, s, show_zaxis):
             # y -= s / 2
         if dof[0] == "1":
             idx = len(points)
-            points.extend(
-                [
-                    [x, y - s / 2, z - s / 2],
-                    [x, y + s / 2, z - s / 2],
-                    [x, y + s / 2, z + s / 2],
-                    [x, y - s / 2, z + s / 2],
-                ]
-            )
-            cells.extend(
-                [
-                    2,
-                    idx,
-                    idx + 1,
-                    2,
-                    idx + 1,
-                    idx + 2,
-                    2,
-                    idx + 2,
-                    idx + 3,
-                    2,
-                    idx + 3,
-                    idx,
-                ]
-            )
+            points.extend([
+                [x, y - s / 2, z - s / 2],
+                [x, y + s / 2, z - s / 2],
+                [x, y + s / 2, z + s / 2],
+                [x, y - s / 2, z + s / 2],
+            ])
+            cells.extend([
+                2,
+                idx,
+                idx + 1,
+                2,
+                idx + 1,
+                idx + 2,
+                2,
+                idx + 2,
+                idx + 3,
+                2,
+                idx + 3,
+                idx,
+            ])
         if dof[1] == "1":
             idx = len(points)
-            points.extend(
-                [
-                    [x - s / 2, y, z - s / 2],
-                    [x + s / 2, y, z - s / 2],
-                    [x + s / 2, y, z + s / 2],
-                    [x - s / 2, y, z + s / 2],
-                ]
-            )
-            cells.extend(
-                [
-                    2,
-                    idx,
-                    idx + 1,
-                    2,
-                    idx + 1,
-                    idx + 2,
-                    2,
-                    idx + 2,
-                    idx + 3,
-                    2,
-                    idx + 3,
-                    idx,
-                ]
-            )
+            points.extend([
+                [x - s / 2, y, z - s / 2],
+                [x + s / 2, y, z - s / 2],
+                [x + s / 2, y, z + s / 2],
+                [x - s / 2, y, z + s / 2],
+            ])
+            cells.extend([
+                2,
+                idx,
+                idx + 1,
+                2,
+                idx + 1,
+                idx + 2,
+                2,
+                idx + 2,
+                idx + 3,
+                2,
+                idx + 3,
+                idx,
+            ])
         if dof[2] == "1":
             idx = len(points)
-            points.extend(
-                [
-                    [x - s / 2, y - s / 2, z],
-                    [x + s / 2, y - s / 2, z],
-                    [x + s / 2, y + s / 2, z],
-                    [x - s / 2, y + s / 2, z],
-                ]
-            )
-            cells.extend(
-                [
-                    2,
-                    idx,
-                    idx + 1,
-                    2,
-                    idx + 1,
-                    idx + 2,
-                    2,
-                    idx + 2,
-                    idx + 3,
-                    2,
-                    idx + 3,
-                    idx,
-                ]
-            )
+            points.extend([
+                [x - s / 2, y - s / 2, z],
+                [x + s / 2, y - s / 2, z],
+                [x + s / 2, y + s / 2, z],
+                [x - s / 2, y + s / 2, z],
+            ])
+            cells.extend([
+                2,
+                idx,
+                idx + 1,
+                2,
+                idx + 1,
+                idx + 2,
+                2,
+                idx + 2,
+                idx + 3,
+                2,
+                idx + 3,
+                idx,
+            ])
     return points, cells
 
 
@@ -829,7 +795,7 @@ def _plot_bc(plotter, fixed_dofs, fixed_coords, s, show_zaxis, color):
             width=1,
         )
     else:
-        warnings.warn("Info:: Model has no fixed nodes!")
+        warnings.warn("Info:: Model has no fixed nodes!", stacklevel=2)
     return bc_plot
 
 
@@ -843,9 +809,7 @@ def _plot_mp_constraint(
     color,
     show_dofs=False,
 ):
-    pplot = _plot_lines(
-        plotter, points, cells, width=lw, color=color, label="MP Constraint"
-    )
+    pplot = _plot_lines(plotter, points, cells, width=lw, color=color, label="MP Constraint")
     dofs = ["".join(map(str, row)) for row in dofs]
     if show_dofs and len(cells) > 0:
         plotter.add_point_labels(
