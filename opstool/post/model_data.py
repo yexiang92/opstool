@@ -7,13 +7,13 @@ import numpy as np
 import xarray as xr
 from typing import Union
 
-from ..utils import CONSTANTS, get_random_color
+from ..utils import CONSTANTS, get_random_color, ConfigUpdate
 from ._get_model_data_base import FEMData
 
-RESULTS_DIR = CONSTANTS.get_output_dir()
-CONSOLE = CONSTANTS.get_console()
-PKG_PREFIX = CONSTANTS.get_pkg_prefix()
-MODEL_FILE_NAME = CONSTANTS.get_model_filename()
+# RESULTS_DIR = CONSTANTS.get_output_dir()
+# CONSOLE = CONSTANTS.get_console()
+# PKG_PREFIX = CONSTANTS.get_pkg_prefix()
+# MODEL_FILE_NAME = CONSTANTS.get_model_filename()
 
 class GetFEMData(FEMData):
 
@@ -461,7 +461,8 @@ def save_model_data(
     odb_tag: Union[str, int], default = 1
         Output database tag, the data will be saved in ``ModelData-{odb_tag}.nc``.
     """
-    output_filename = RESULTS_DIR + "/" + f"{MODEL_FILE_NAME}-{odb_tag}.nc"
+    model_config = ConfigUpdate()
+    output_filename = model_config.RESULTS_DIR + "/" + f"{model_config.MODEL_FILE_NAME}-{odb_tag}.nc"
     model_data = GetFEMData()
     model_info, cells = model_data.get_model_info()
     model_data = dict()
@@ -472,12 +473,12 @@ def save_model_data(
             model_data[f"Cells/{key}"] = xr.Dataset({key: cells[key]})
     else:
         model_data["Cells"] = xr.Dataset()
-    dt = xr.DataTree.from_dict(model_data, name=f"{MODEL_FILE_NAME}")
+    dt = xr.DataTree.from_dict(model_data, name=f"{model_config.MODEL_FILE_NAME}")
     dt.to_netcdf(output_filename, mode="w", engine="netcdf4")
     # /////////////////////////////////////
     color = get_random_color()
-    CONSOLE.print(
-        f"{PKG_PREFIX} Model data has been saved to [bold {color}]{output_filename}[/]!"
+    model_config.CONSOLE.print(
+        f"{model_config.PKG_PREFIX} Model data has been saved to [bold {color}]{output_filename}[/]!"
     )
 
 
@@ -499,19 +500,20 @@ def load_model_data(
     model_info: dict[xarray.DataArray]
     cells: dict[xarray.DataArray]
     """
+    model_config = ConfigUpdate()
     if odb_tag is None:
         model_data = GetFEMData()
         model_info, cells = model_data.get_model_info()
     else:
-        filename = f"{RESULTS_DIR}/" + f"{MODEL_FILE_NAME}-{odb_tag}.nc"
+        filename = f"{model_config.RESULTS_DIR}/" + f"{model_config.MODEL_FILE_NAME}-{odb_tag}.nc"
         if not os.path.exists(filename):
             resave = True
         if resave:
             save_model_data(odb_tag=odb_tag)
         else:
             color = get_random_color()
-            CONSOLE.print(
-                f"{PKG_PREFIX} Loading model data from [bold {color}]{filename}[/] ..."
+            model_config.CONSOLE.print(
+                f"{model_config.PKG_PREFIX} Loading model data from [bold {color}]{filename}[/] ..."
             )
         model_info, cells = dict(), dict()
         with xr.open_datatree(filename, engine="netcdf4").load() as dt:

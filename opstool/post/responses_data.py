@@ -22,14 +22,13 @@ from .eigen_data import save_eigen_data
 from .model_data import save_model_data
 from ._unit_postprocess import get_post_unit_multiplier, get_post_unit_symbol
 
-from ..utils import get_random_color, CONSTANTS
+from ..utils import get_random_color, CONSTANTS, ConfigUpdate
 
-RESULTS_DIR = CONSTANTS.get_output_dir()
-CONSOLE = CONSTANTS.get_console()
-PKG_PREFIX = CONSTANTS.get_pkg_prefix()
-RESP_FILE_NAME = CONSTANTS.get_resp_filename()
-MODEL_FILE_NAME = CONSTANTS.get_model_filename()
-
+# RESULTS_DIR = CONSTANTS.get_output_dir()
+# CONSOLE = CONSTANTS.get_console()
+# PKG_PREFIX = CONSTANTS.get_pkg_prefix()
+# RESP_FILE_NAME = CONSTANTS.get_resp_filename()
+# MODEL_FILE_NAME = CONSTANTS.get_model_filename()
 
 POST_ARGS = SimpleNamespace(
     elastic_frame_sec_points=7,
@@ -421,12 +420,13 @@ class CreateODB:
             print information, by default, False
         """
         self._set_resp()
+        model_config = ConfigUpdate()
 
         if print_info:
             time = ops.getTime()
             color = get_random_color()
-            CONSOLE.print(
-                f"{PKG_PREFIX} The responses data at time [bold {color}]{time:.4f}[/] has been fetched!"
+            model_config.CONSOLE.print(
+                f"{model_config.PKG_PREFIX} The responses data at time [bold {color}]{time:.4f}[/] has been fetched!"
             )
 
     def save_response(self, zlib: bool = False):
@@ -440,8 +440,9 @@ class CreateODB:
             which is useful when your result files are expected to be large,
             especially if model updating is turned on.
         """
-        filename = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{self._odb_tag}.nc"
-        with xr.DataTree(name=f"{RESP_FILE_NAME}") as dt:
+        model_config = ConfigUpdate()
+        filename = f"{model_config.RESULTS_DIR}/" + f"{model_config.RESP_FILE_NAME}-{self._odb_tag}.nc"
+        with xr.DataTree(name=f"{model_config.RESP_FILE_NAME}") as dt:
             for resp in self._get_resp():
                 if resp is not None:
                     resp.save_file(dt)
@@ -475,8 +476,8 @@ class CreateODB:
             dt.to_netcdf(filename, mode="w", engine="netcdf4", encoding=encoding)
 
         color = get_random_color()
-        CONSOLE.print(
-            f"{PKG_PREFIX} All responses data with _odb_tag = {self._odb_tag} "
+        model_config.CONSOLE.print(
+            f"{model_config.PKG_PREFIX} All responses data with _odb_tag = {self._odb_tag} "
             f"saved in [bold {color}]{filename}[/]!"
         )
 
@@ -513,11 +514,12 @@ def loadODB(
     --------
     Relevant to a response type.
     """
-    filename = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{obd_tag}.nc"
+    model_config = ConfigUpdate()
+    filename = f"{model_config.RESULTS_DIR}/" + f"{model_config.RESP_FILE_NAME}-{obd_tag}.nc"
     with xr.open_datatree(filename, engine="netcdf4").load() as dt:
         color = get_random_color()
-        CONSOLE.print(
-            f"{PKG_PREFIX} Loading response data from [bold {color}]{filename}[/] ..."
+        model_config.CONSOLE.print(
+            f"{model_config.PKG_PREFIX} Loading response data from [bold {color}]{filename}[/] ..."
         )
         model_info_steps, model_update = ModelInfoStepData.read_file(dt, unit_factors=POST_ARGS.unit_factors)
         if resp_type.lower() == "nodal":
@@ -547,7 +549,7 @@ def loadODB(
 
 
 def get_model_data(
-        odb_tag: int = None,
+        odb_tag: Union[int, str] = None,
         data_type: str = "Nodal",
         from_responses: bool = False
 ):
@@ -569,6 +571,7 @@ def get_model_data(
     ---------
     ModelData: xarray.Dataset if model_update is True, otherwise xarray.DataArray
     """
+    model_config = ConfigUpdate()
     if data_type.lower() == "nodal":
         data_type = "NodalData"
     elif data_type.lower() in ["frame", "beam"]:
@@ -588,16 +591,16 @@ def get_model_data(
     else:
         raise ValueError(f"Data type {data_type} not found.")
     if from_responses:
-        filename = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{odb_tag}.nc"
+        filename = f"{model_config.RESULTS_DIR}/" + f"{model_config.RESP_FILE_NAME}-{odb_tag}.nc"
         with xr.open_datatree(filename, engine="netcdf4").load() as dt:
             data = ModelInfoStepData.read_data(dt, data_type)
     else:
-        filename = f"{RESULTS_DIR}/" + f"{MODEL_FILE_NAME}-{odb_tag}.nc"
+        filename = f"{model_config.RESULTS_DIR}/" + f"{model_config.MODEL_FILE_NAME}-{odb_tag}.nc"
         with xr.open_datatree(filename, engine="netcdf4").load() as dt:
             data = dt["ModelInfo"][data_type][data_type]
     color = get_random_color()
-    CONSOLE.print(
-        f"{PKG_PREFIX} Loading {data_type} data from [bold {color}]{filename}[/] ..."
+    model_config.CONSOLE.print(
+        f"{model_config.PKG_PREFIX} Loading {data_type} data from [bold {color}]{filename}[/] ..."
     )
     return data
 
@@ -655,17 +658,18 @@ def get_nodal_responses(
         You can further index or process the data.
 
     """
-    filename = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{odb_tag}.nc"
+    model_config = ConfigUpdate()
+    filename = f"{model_config.RESULTS_DIR}/" + f"{model_config.RESP_FILE_NAME}-{odb_tag}.nc"
     with xr.open_datatree(filename, engine="netcdf4").load() as dt:
         if print_info:
             color = get_random_color()
             if resp_type is None:
-                CONSOLE.print(
-                    f"{PKG_PREFIX} Loading all response data from [bold {color}]{filename}[/] ..."
+                model_config.CONSOLE.print(
+                    f"{model_config.PKG_PREFIX} Loading all response data from [bold {color}]{filename}[/] ..."
                 )
             else:
-                CONSOLE.print(
-                    f"{PKG_PREFIX} Loading {resp_type} response data from [bold {color}]{filename}[/] ..."
+                model_config.CONSOLE.print(
+                    f"{model_config.PKG_PREFIX} Loading {resp_type} response data from [bold {color}]{filename}[/] ..."
                 )
 
         nodal_resp = NodalRespStepData.read_response(
@@ -760,17 +764,18 @@ def get_element_responses(
         dimension names and coordinates.
         You can further index or process the data.
     """
-    filename = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{odb_tag}.nc"
+    model_config = ConfigUpdate()
+    filename = f"{model_config.RESULTS_DIR}/" + f"{model_config.RESP_FILE_NAME}-{odb_tag}.nc"
     with xr.open_datatree(filename, engine="netcdf4").load() as dt:
         if print_info:
             color = get_random_color()
             if resp_type is None:
-                CONSOLE.print(
-                    f"{PKG_PREFIX} Loading {ele_type} response data from [bold {color}]{filename}[/] ..."
+                model_config.CONSOLE.print(
+                    f"{model_config.PKG_PREFIX} Loading {ele_type} response data from [bold {color}]{filename}[/] ..."
                 )
             else:
-                CONSOLE.print(
-                    f"{PKG_PREFIX} Loading {ele_type} {resp_type} response data from [bold {color}]{filename}[/] ..."
+                model_config.CONSOLE.print(
+                    f"{model_config.PKG_PREFIX} Loading {ele_type} {resp_type} response data from [bold {color}]{filename}[/] ..."
                 )
 
         if ele_type.lower() == "frame":
@@ -843,17 +848,18 @@ def get_sensitivity_responses(
     SensResp: `xarray.Dataset <https://docs.xarray.dev/en/stable/generated/xarray.Dataset.html>`_
         Sensitivity responses' data.
     """
-    filename = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{odb_tag}.nc"
+    model_config = ConfigUpdate()
+    filename = f"{model_config.RESULTS_DIR}/" + f"{model_config.RESP_FILE_NAME}-{odb_tag}.nc"
     with xr.open_datatree(filename, engine="netcdf4").load() as dt:
         if print_info:
             color = get_random_color()
             if resp_type is None:
-                CONSOLE.print(
-                    f"{PKG_PREFIX} Loading response data from [bold {color}]{filename}[/] ..."
+                model_config.CONSOLE.print(
+                    f"{model_config.PKG_PREFIX} Loading response data from [bold {color}]{filename}[/] ..."
                 )
             else:
-                CONSOLE.print(
-                    f"{PKG_PREFIX} Loading {resp_type} response data from [bold {color}]{filename}[/] ..."
+                model_config.CONSOLE.print(
+                    f"{model_config.PKG_PREFIX} Loading {resp_type} response data from [bold {color}]{filename}[/] ..."
                 )
 
         resp = SensitivityRespStepData.read_response(dt, resp_type=resp_type)

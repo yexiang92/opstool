@@ -119,3 +119,20 @@ class CONSTANTS:
     @classmethod
     def get_shape_map(cls):
         return cls.SHAPE_MAP
+
+class ConfigUpdate:
+    def __init__(self):
+        self.RESULTS_DIR = None
+        self.CONSOLE = None
+        self.PKG_PREFIX = None
+        self.RESP_FILE_NAME = None
+        self.MODEL_FILE_NAME = None
+
+        self.update()
+
+    def update(self):
+        self.RESULTS_DIR = CONSTANTS.get_output_dir()
+        self.CONSOLE = CONSTANTS.get_console()
+        self.PKG_PREFIX = CONSTANTS.get_pkg_prefix()
+        self.RESP_FILE_NAME = CONSTANTS.get_resp_filename()
+        self.MODEL_FILE_NAME = CONSTANTS.get_model_filename()
