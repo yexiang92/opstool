@@ -21,7 +21,7 @@ __all__ = [
     "OPS_ELE_CLASSTAG2TYPE",
     "OPS_ELE_TYPES",
     # ----------------------
-    "CONSTANTS", "ConfigUpdate"
+    "CONSTANTS", "ConfigUpdate",
     # -----------------------
     "check_file_type",
     "gram_schmidt",
