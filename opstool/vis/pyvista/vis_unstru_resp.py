@@ -6,42 +6,21 @@ import pyvista as pv
 
 from ...post import loadODB
 from .plot_resp_base import PlotResponseBase
-from .plot_utils import (
-    PLOT_ARGS,
-    _get_line_cells,
-    _get_unstru_cells,
-    _plot_all_mesh,
-    _plot_unstru_cmap,
-)
+from .plot_utils import PLOT_ARGS, _get_unstru_cells, _plot_unstru_cmap
 
 
 class PlotUnstruResponse(PlotResponseBase):
-    def __init__(self, model_info_steps, resp_step, model_update):
-        super().__init__(model_info_steps, resp_step, model_update)
+    def __init__(self, model_info_steps, resp_step, model_update, node_resp_steps=None):
+        super().__init__(model_info_steps, resp_step, model_update, nodal_resp_steps=node_resp_steps)
         self.ele_type = "Shell"
 
-    def _plot_all_mesh(self, plotter, color="gray", step=0):
-        pos = self._get_node_data(step).to_numpy()
-        line_cells, _ = _get_line_cells(self._get_line_data(step))
-        _, unstru_cell_types, unstru_cells = _get_unstru_cells(self._get_unstru_data(step))
-
-        _plot_all_mesh(
-            plotter,
-            pos,
-            line_cells,
-            unstru_cells,
-            unstru_cell_types,
-            color=color,
-            render_lines_as_tubes=False,
-        )
-
-    def _get_unstru_data(self, step):
+    def _get_unstru_da(self, step):
         if self.ele_type.lower() == "shell":
-            return self._get_model_data("ShellData", step)
+            return self._get_model_da("ShellData", step)
         elif self.ele_type.lower() == "plane":
-            return self._get_model_data("PlaneData", step)
+            return self._get_model_da("PlaneData", step)
         elif self.ele_type.lower() in ["brick", "solid"]:
-            return self._get_model_data("BrickData", step)
+            return self._get_model_da("BrickData", step)
         else:
             raise ValueError(f"Invalid element type {self.ele_type}! Valid options are: Shell, Plane, Brick.")  # noqa: TRY003
 
@@ -51,8 +30,8 @@ class PlotUnstruResponse(PlotResponseBase):
         self.component = component
 
     def _make_unstru_info(self, ele_tags, step):
-        pos = self._get_node_data(step).to_numpy()
-        unstru_data = self._get_unstru_data(step)
+        pos = self._get_node_da(step).to_numpy()
+        unstru_data = self._get_unstru_da(step)
         if ele_tags is None:
             tags, cell_types, cells = _get_unstru_cells(unstru_data)
         else:
@@ -67,12 +46,12 @@ class PlotUnstruResponse(PlotResponseBase):
         if self.ModelUpdate or ele_tags is not None:
             for i in range(self.num_steps):
                 tags, _, _, _ = self._make_unstru_info(ele_tags, i)
-                da = self._get_resp_data(i, self.resp_type, self.component)
+                da = self._get_resp_da(i, self.resp_type, self.component)
                 da = da.sel(eleTags=tags)
                 resps.append(da.mean(dim="GaussPoints", skipna=True))
         else:
             for i in range(self.num_steps):
-                da = self._get_resp_data(i, self.resp_type, self.component)
+                da = self._get_resp_da(i, self.resp_type, self.component)
                 resps.append(da.mean(dim="GaussPoints", skipna=True))
         self.resp_step = resps
 
@@ -127,8 +106,8 @@ class PlotUnstruResponse(PlotResponseBase):
             f"{info['max']:.3E} (max)",
             f"{info['step']}(step); {info['time']:.3f}(time)",
         ]
-        if self.unit:
-            info["unit"] = self.unit
+        if self.unit_symbol:
+            info["unit"] = self.unit_symbol
             lines.insert(3, f"{info['unit']} (unit)")
 
         max_len = max(len(line) for line in lines)
@@ -136,14 +115,30 @@ class PlotUnstruResponse(PlotResponseBase):
         text = "\n".join(padded_lines)
         return text + "\n"
 
-    def _get_mesh_data(self, step, ele_tags):
+    def _get_mesh_data(self, step, ele_tags, defo_scale):
+        pos_defo = np.array(self._get_defo_coord_da(step, defo_scale))
         tags, pos, cells, cell_types = self._make_unstru_info(ele_tags, step)
         scalars = self.resp_step[step].to_numpy()
-        return pos, cells, cell_types, scalars
+        return pos_defo, cells, cell_types, scalars
 
-    def _create_mesh(self, plotter, value, ele_tags=None, plot_all_mesh=True, clim=None, style="surface", cpos="iso"):
+    def _create_mesh(
+        self,
+        plotter,
+        value,
+        ele_tags=None,
+        plot_all_mesh=True,
+        clim=None,
+        style="surface",
+        cpos="iso",
+        defo_scale=1.0,
+        show_outline=False,
+        show_bc: bool = True,
+        bc_scale: float = 1.0,
+        show_mp_constraint: bool = False,
+    ):
         step = round(value)
-        pos, cells, cell_types, scalars = self._get_mesh_data(value, ele_tags)
+        node_no_deform_coords = np.array(self._get_node_da(step))
+        pos, cells, cell_types, scalars = self._get_mesh_data(step, ele_tags, defo_scale)
         #  ---------------------------------
         plotter.clear_actors()  # !!!!!!
         if plot_all_mesh:
@@ -162,6 +157,7 @@ class PlotUnstruResponse(PlotResponseBase):
             edge_width=self.pargs.mesh_edge_width,
             opacity=self.pargs.mesh_opacity,
             style=style,
+            pos_origin=node_no_deform_coords,
         )
 
         title = self._make_title(scalars, step, self.time[step])
@@ -172,22 +168,60 @@ class PlotUnstruResponse(PlotResponseBase):
             title_prop.SetJustificationToRight()
             title_prop.BoldOn()
 
-        self.update(plotter, cpos)
-        return resp_plot, scalar_bar
+        if show_outline:
+            self._plot_outline(plotter)
+        bc_grid, mp_grid = None, None
+        if show_bc:
+            bc_grid = self._plot_bc(plotter, step, defo_scale=defo_scale, bc_scale=bc_scale)
+        if show_mp_constraint:
+            mp_grid = self._plot_mp_constraint(plotter, step, defo_scale=defo_scale)
 
-    def _update_mesh(self, step, ele_tags, resp_plot, scalar_bar):
+        self._update_plotter(plotter, cpos)
+        return resp_plot, scalar_bar, bc_grid, mp_grid
+
+    def _update_mesh(
+        self,
+        step,
+        ele_tags,
+        resp_plot,
+        scalar_bar,
+        bc_grid=None,
+        mp_grid=None,
+        defo_scale=1.0,
+        bc_scale: float = 1.0,
+    ):
         step = round(step)
-        pos, cells, cell_types, scalars = self._get_mesh_data(step, ele_tags)
+        pos, cells, cell_types, scalars = self._get_mesh_data(step, ele_tags, defo_scale)
 
         if resp_plot:
+            resp_plot.points = pos
             resp_plot["scalars"] = scalars
 
         if scalar_bar:
             title = self._make_title(scalars, step, self.time[step])
             scalar_bar.SetTitle(title)
 
-    def plot_slide(self, plotter, ele_tags=None, style="surface", plot_model=True, cpos="iso"):
+        if mp_grid:
+            self._plot_mp_constraint_update(mp_grid, step, defo_scale=defo_scale)
+        if bc_grid:
+            self._plot_bc_update(bc_grid, step, defo_scale=defo_scale, bc_scale=bc_scale)
+
+    def plot_slide(
+        self,
+        plotter,
+        ele_tags=None,
+        style="surface",
+        plot_model=True,
+        cpos="iso",
+        show_defo=True,
+        defo_scale: float = 1.0,
+        show_bc: bool = True,
+        bc_scale: float = 1.0,
+        show_mp_constraint: bool = True,
+        show_outline=False,
+    ):
         _, clim = self._get_resp_peak()
+        alpha_ = defo_scale if show_defo else 0.0
         if self.ModelUpdate:
             func = partial(
                 self._create_mesh,
@@ -197,9 +231,14 @@ class PlotUnstruResponse(PlotResponseBase):
                 plot_all_mesh=plot_model,
                 style=style,
                 cpos=cpos,
+                defo_scale=alpha_,
+                show_outline=show_outline,
+                show_bc=show_bc,
+                bc_scale=bc_scale,
+                show_mp_constraint=show_mp_constraint,
             )
         else:
-            resp_plot, scalar_bar = self._create_mesh(
+            resp_plot, scalar_bar, bc_grid, mp_grid = self._create_mesh(
                 plotter,
                 self.num_steps - 1,
                 ele_tags=ele_tags,
@@ -207,14 +246,54 @@ class PlotUnstruResponse(PlotResponseBase):
                 plot_all_mesh=plot_model,
                 style=style,
                 cpos=cpos,
+                defo_scale=alpha_,
+                show_outline=show_outline,
+                show_bc=show_bc,
+                bc_scale=bc_scale,
+                show_mp_constraint=show_mp_constraint,
             )
-            func = partial(self._update_mesh, ele_tags=ele_tags, resp_plot=resp_plot, scalar_bar=scalar_bar)
+            func = partial(
+                self._update_mesh,
+                ele_tags=ele_tags,
+                resp_plot=resp_plot,
+                scalar_bar=scalar_bar,
+                bc_grid=bc_grid,
+                mp_grid=mp_grid,
+                bc_scale=bc_scale,
+                defo_scale=alpha_,
+            )
         plotter.add_slider_widget(func, [0, self.num_steps - 1], value=self.num_steps - 1, **self.slider_widget_args)
 
-    def plot_peak_step(self, plotter, step="absMax", ele_tags=None, style="surface", plot_model=True, cpos="iso"):
+    def plot_peak_step(
+        self,
+        plotter,
+        step="absMax",
+        ele_tags=None,
+        style="surface",
+        plot_model=True,
+        cpos="iso",
+        defo_scale=1.0,
+        show_defo=True,
+        show_bc: bool = True,
+        bc_scale: float = 1.0,
+        show_mp_constraint: bool = True,
+        show_outline=False,
+    ):
         step, clim = self._get_resp_peak(idx=step)
+        alpha_ = defo_scale if show_defo else 0.0
         self._create_mesh(
-            plotter=plotter, value=step, ele_tags=ele_tags, clim=clim, plot_all_mesh=plot_model, style=style, cpos=cpos
+            plotter=plotter,
+            value=step,
+            ele_tags=ele_tags,
+            clim=clim,
+            plot_all_mesh=plot_model,
+            style=style,
+            cpos=cpos,
+            defo_scale=alpha_,
+            show_outline=show_outline,
+            show_bc=show_bc,
+            bc_scale=bc_scale,
+            show_mp_constraint=show_mp_constraint,
         )
 
     def plot_anim(
@@ -226,6 +305,12 @@ class PlotUnstruResponse(PlotResponseBase):
         style="surface",
         plot_model=True,
         cpos="iso",
+        defo_scale=1.0,
+        show_defo=True,
+        show_bc: bool = True,
+        bc_scale: float = 1.0,
+        show_mp_constraint: bool = True,
+        show_outline=False,
     ):
         if framerate is None:
             framerate = np.ceil(self.num_steps / 11)
@@ -234,16 +319,28 @@ class PlotUnstruResponse(PlotResponseBase):
         else:
             plotter.open_movie(savefig, framerate=framerate)
         _, clim = self._get_resp_peak()
+        alpha_ = defo_scale if show_defo else 0.0
         # plotter.write_frame()  # write initial data
 
         if self.ModelUpdate:
             for step in range(self.num_steps):
                 self._create_mesh(
-                    plotter, step, ele_tags=ele_tags, clim=clim, plot_all_mesh=plot_model, style=style, cpos=cpos
+                    plotter,
+                    step,
+                    ele_tags=ele_tags,
+                    clim=clim,
+                    plot_all_mesh=plot_model,
+                    style=style,
+                    cpos=cpos,
+                    defo_scale=alpha_,
+                    show_outline=show_outline,
+                    show_bc=show_bc,
+                    bc_scale=bc_scale,
+                    show_mp_constraint=show_mp_constraint,
                 )
                 plotter.write_frame()
         else:
-            resp_plot, scalar_bar = self._create_mesh(
+            resp_plot, scalar_bar, bc_grid, mp_grid = self._create_mesh(
                 plotter,
                 0,
                 ele_tags=ele_tags,
@@ -251,6 +348,11 @@ class PlotUnstruResponse(PlotResponseBase):
                 plot_all_mesh=plot_model,
                 style=style,
                 cpos=cpos,
+                defo_scale=alpha_,
+                show_outline=show_outline,
+                show_bc=show_bc,
+                bc_scale=bc_scale,
+                show_mp_constraint=show_mp_constraint,
             )
             plotter.write_frame()
             for step in range(1, self.num_steps):
@@ -259,6 +361,10 @@ class PlotUnstruResponse(PlotResponseBase):
                     ele_tags=ele_tags,
                     resp_plot=resp_plot,
                     scalar_bar=scalar_bar,
+                    bc_grid=bc_grid,
+                    mp_grid=mp_grid,
+                    bc_scale=bc_scale,
+                    defo_scale=alpha_,
                 )
                 plotter.write_frame()
 
@@ -271,10 +377,17 @@ def plot_unstruct_responses(
     step: Union[int, str] = "absMax",
     resp_type: str = "sectionForces",
     resp_dof: str = "MXX",
-    unit_symbol: Optional[str] = None,
     style: str = "surface",
+    unit_symbol: Optional[str] = None,
+    unit_factor: Optional[float] = None,
+    show_defo: bool = True,
+    defo_scale: float = 1.0,
+    show_bc: bool = True,
+    bc_scale: float = 1.0,
+    show_mp_constraint: bool = False,
+    show_outline: bool = False,
     cpos: str = "iso",
-    plot_model: bool = True,
+    show_model: bool = True,
 ) -> pv.Plotter:
     """Visualizing unstructured element (Shell, Plane, Brick) Response.
 
@@ -340,14 +453,30 @@ def plot_unstruct_responses(
 
     unit_symbol: str, default: None
         Unit symbol to be displayed in the plot.
+    unit_factor: float, default: None
+        The multiplier used to convert units.
+        For example, if you want to visualize stress and the current data unit is kPa, you can set ``unit_symbol="kPa" and unit_factor=1.0``.
+        If you want to visualize in MPa, you can set ``unit_symbol="MPa" and unit_factor=0.001``.
     style: str, default: surface
         Visualization the mesh style of surfaces and solids.
         One of the following: style='surface', style='wireframe', style='points', style='points_gaussian'.
         Defaults to 'surface'. Note that 'wireframe' only shows a wireframe of the outer geometry.
+    show_defo: bool, default: True
+        Whether to display the deformed shape.
+    defo_scale: float, default: 1.0
+        Scales the size of the deformation presentation when show_defo is True.
+    show_bc: bool, default: True
+        Whether to display boundary supports.
+    bc_scale: float, default: 1.0
+        Scale the size of boundary support display.
+    show_mp_constraint: bool, default: False
+        Whether to show multipoint (MP) constraint.
+    show_outline: bool, default: False
+        Whether to display the outline of the model.
     cpos: str, default: iso
         Model display perspective, optional: "iso", "xy", "yx", "xz", "zx", "yz", "zy".
         If 3d, defaults to "iso". If 2d, defaults to "xy".
-    plot_model: bool, default: True
+    show_model: bool, default: True
         Whether to plot the all model or not.
 
     Returns
@@ -365,14 +494,18 @@ def plot_unstruct_responses(
     """
     ele_type, resp_type, resp_dof = _check_input(ele_type, resp_type, resp_dof)
     model_info_steps, model_update, resp_step = loadODB(odb_tag, resp_type=ele_type)
+    if show_defo:
+        _, _, node_resp_steps = loadODB(odb_tag, resp_type="Nodal", verbose=False)
+    else:
+        node_resp_steps = None
     plotter = pv.Plotter(
         notebook=PLOT_ARGS.notebook,
         line_smoothing=PLOT_ARGS.line_smoothing,
         polygon_smoothing=PLOT_ARGS.polygon_smoothing,
         off_screen=PLOT_ARGS.off_screen,
     )
-    plotbase = PlotUnstruResponse(model_info_steps, resp_step, model_update)
-    plotbase.set_unit_symbol(unit_symbol)
+    plotbase = PlotUnstruResponse(model_info_steps, resp_step, model_update, node_resp_steps=node_resp_steps)
+    plotbase.set_unit(symbol=unit_symbol, factor=unit_factor)
     plotbase.refactor_resp_step(ele_tags=ele_tags, ele_type=ele_type, resp_type=resp_type, component=resp_dof)
     if slides:
         plotbase.plot_slide(
@@ -380,13 +513,32 @@ def plot_unstruct_responses(
             ele_tags=ele_tags,
             style=style,
             cpos=cpos,
-            plot_model=plot_model,
+            plot_model=show_model,
+            defo_scale=defo_scale,
+            show_defo=show_defo,
+            show_bc=show_bc,
+            bc_scale=bc_scale,
+            show_mp_constraint=show_mp_constraint,
+            show_outline=show_outline,
         )
     else:
-        plotbase.plot_peak_step(plotter, ele_tags=ele_tags, step=step, style=style, cpos=cpos, plot_model=plot_model)
+        plotbase.plot_peak_step(
+            plotter,
+            ele_tags=ele_tags,
+            step=step,
+            style=style,
+            cpos=cpos,
+            plot_model=show_model,
+            defo_scale=defo_scale,
+            show_defo=show_defo,
+            show_bc=show_bc,
+            bc_scale=bc_scale,
+            show_mp_constraint=show_mp_constraint,
+            show_outline=show_outline,
+        )
     if PLOT_ARGS.anti_aliasing:
         plotter.enable_anti_aliasing(PLOT_ARGS.anti_aliasing)
-    return plotbase.update(plotter, cpos)
+    return plotbase._update_plotter(plotter, cpos)
 
 
 def plot_unstruct_responses_animation(
@@ -396,12 +548,19 @@ def plot_unstruct_responses_animation(
     ele_type: str = "Shell",
     resp_type: Optional[str] = None,
     resp_dof: Optional[str] = None,
-    unit_symbol: Optional[str] = None,
     savefig: Optional[str] = None,
     off_screen: bool = True,
     style: str = "surface",
+    unit_symbol: Optional[str] = None,
+    unit_factor: Optional[float] = None,
+    show_defo: bool = True,
+    defo_scale: float = 1.0,
+    show_bc: bool = True,
+    bc_scale: float = 1.0,
+    show_mp_constraint: bool = False,
+    show_outline: bool = False,
     cpos: str = "iso",
-    plot_model: bool = True,
+    show_model: bool = True,
 ) -> pv.Plotter:
     """Unstructured element (Shell, Plane, Brick) response animation.
 
@@ -466,14 +625,30 @@ def plot_unstruct_responses_animation(
 
     unit_symbol: str, default: None
         Unit symbol to be displayed in the plot.
+    unit_factor: float, default: None
+        The multiplier used to convert units.
+        For example, if you want to visualize stress and the current data unit is kPa, you can set ``unit_symbol="kPa" and unit_factor=1.0``.
+        If you want to visualize in MPa, you can set ``unit_symbol="MPa" and unit_factor=0.001``.
     style: str, default: surface
         Visualization the mesh style of surfaces and solids.
         One of the following: style='surface', style='wireframe', style='points', style='points_gaussian'.
         Defaults to 'surface'. Note that 'wireframe' only shows a wireframe of the outer geometry.
+    show_defo: bool, default: True
+        Whether to display the deformed shape.
+    defo_scale: float, default: 1.0
+        Scales the size of the deformation presentation when show_defo is True.
+    show_bc: bool, default: True
+        Whether to display boundary supports.
+    bc_scale: float, default: 1.0
+        Scale the size of boundary support display.
+    show_mp_constraint: bool, default: False
+        Whether to show multipoint (MP) constraint.
+    show_outline: bool, default: False
+        Whether to display the outline of the model.
     cpos: str, default: iso
         Model display perspective, optional: "iso", "xy", "yx", "xz", "zx", "yz", "zy".
         If 3d, defaults to "iso". If 2d, defaults to "xy".
-    plot_model: bool, default: True
+    show_model: bool, default: True
         Whether to plot the all model or not.
 
     Returns
@@ -493,22 +668,38 @@ def plot_unstruct_responses_animation(
     if savefig is None:
         savefig = f"{ele_type.capitalize()}RespAnimation.gif"
     model_info_steps, model_update, resp_step = loadODB(odb_tag, resp_type=ele_type)
+    if show_defo:
+        _, _, node_resp_steps = loadODB(odb_tag, resp_type="Nodal", verbose=False)
+    else:
+        node_resp_steps = None
     plotter = pv.Plotter(
         notebook=PLOT_ARGS.notebook,
         line_smoothing=PLOT_ARGS.line_smoothing,
         polygon_smoothing=PLOT_ARGS.polygon_smoothing,
         off_screen=off_screen,
     )
-    plotbase = PlotUnstruResponse(model_info_steps, resp_step, model_update)
-    plotbase.set_unit_symbol(unit_symbol)
+    plotbase = PlotUnstruResponse(model_info_steps, resp_step, model_update, node_resp_steps=node_resp_steps)
+    plotbase.set_unit(symbol=unit_symbol, factor=unit_factor)
     plotbase.refactor_resp_step(ele_tags=ele_tags, ele_type=ele_type, resp_type=resp_type, component=resp_dof)
     plotbase.plot_anim(
-        plotter, ele_tags=ele_tags, framerate=framerate, savefig=savefig, style=style, cpos=cpos, plot_model=plot_model
+        plotter,
+        ele_tags=ele_tags,
+        framerate=framerate,
+        savefig=savefig,
+        style=style,
+        cpos=cpos,
+        plot_model=show_model,
+        defo_scale=defo_scale,
+        show_defo=show_defo,
+        show_bc=show_bc,
+        bc_scale=bc_scale,
+        show_mp_constraint=show_mp_constraint,
+        show_outline=show_outline,
     )
     if PLOT_ARGS.anti_aliasing:
         plotter.enable_anti_aliasing(PLOT_ARGS.anti_aliasing)
     print(f"Animation has been saved as {savefig}!")
-    return plotbase.update(plotter, cpos)
+    return plotbase._update_plotter(plotter, cpos)
 
 
 def _check_input(ele_type, resp_type, resp_dof):

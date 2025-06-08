@@ -1,15 +1,16 @@
-import xarray as xr
-import openseespy.opensees as ops
+from typing import Optional
 
-from ._response_base import ResponseBase
+import openseespy.opensees as ops
+import xarray as xr
+
 from ..model_data import GetFEMData
+from ._response_base import ResponseBase
 
 
 class ModelInfoStepData(ResponseBase):
-
     def __init__(self, model_update: bool = False):
         self.model_update = model_update
-        self.model_info_steps = dict()
+        self.model_info_steps = {}
         # -----------------------------------------
         self.times = None
         self.step_track = 0
@@ -47,13 +48,11 @@ class ModelInfoStepData(ResponseBase):
             new_data.coords["time"] = self.times
             self.model_info_steps[key] = new_data
         model_update = 1 if self.model_update else 0
-        self.model_info_steps["ModelUpdate"] = xr.DataArray(
-            model_update, name="ModelUpdate"
-        )
+        self.model_info_steps["ModelUpdate"] = xr.DataArray(model_update, name="ModelUpdate")
 
     def get_current_node_tags(self):
         da = self.model_info_steps["NodalData"][-1]
-        node_tags = list(da.coords["tags"].data)
+        node_tags = list(da.coords["nodeTags"].data)
         unused_node_tags = da.attrs["unusedNodeTags"]
         for tag in unused_node_tags:
             if tag in node_tags:
@@ -122,12 +121,12 @@ class ModelInfoStepData(ResponseBase):
         return dt
 
     @staticmethod
-    def read_file(dt: xr.DataTree, unit_factors: dict = None):
-        model_info = dict()
+    def read_file(dt: xr.DataTree, unit_factors: Optional[dict] = None):
+        model_info = {}
         for key, value in dt["ModelInfo"].items():
             model_info[key] = value[key]
         model_update = int(model_info["ModelUpdate"])
-        model_update = True if model_update == 1 else False
+        model_update = model_update == 1
 
         if unit_factors:
             model_info = ModelInfoStepData._unit_transform(model_info, unit_factors)
@@ -144,14 +143,10 @@ class ModelInfoStepData(ResponseBase):
         bounds = model_info["NodalData"].attrs["bounds"]
         model_info["NodalData"].attrs["bounds"] = (data * disp_factor for data in bounds)
 
-        if "info" in model_info["FixedNodalData"].coords.keys():
-            model_info["FixedNodalData"].loc[
-                {"info": ["x", "y", "z"]}
-            ] *= disp_factor
-        if "info" in model_info["MPConstraintData"].coords.keys():
-            model_info["MPConstraintData"].loc[
-                {"info": ["xo", "yo", "zo"]}
-            ] *= disp_factor
+        if "info" in model_info["FixedNodalData"].coords:
+            model_info["FixedNodalData"].loc[{"info": ["x", "y", "z"]}] *= disp_factor
+        if "info" in model_info["MPConstraintData"].coords:
+            model_info["MPConstraintData"].loc[{"info": ["xo", "yo", "zo"]}] *= disp_factor
         model_info["eleCenters"] *= disp_factor
 
         return model_info

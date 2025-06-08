@@ -1,18 +1,31 @@
 from types import SimpleNamespace
-from typing import Union
 
+import matplotlib.pyplot as plt
 import numpy as np
 import plotly.graph_objs as go
-import matplotlib.pyplot as plt
 from matplotlib.colors import to_hex
 
 from ...utils import OPS_ELE_TYPES
+
+default_cmap = [
+    [0.0, "rgb(165,0,38)"],
+    [0.1111111111111111, "rgb(215,48,39)"],
+    [0.2222222222222222, "rgb(244,109,67)"],
+    [0.3333333333333333, "rgb(253,174,97)"],
+    [0.4444444444444444, "rgb(254,224,144)"],
+    [0.5555555555555556, "rgb(224,243,248)"],
+    [0.6666666666666666, "rgb(171,217,233)"],
+    [0.7777777777777778, "rgb(116,173,209)"],
+    [0.8888888888888888, "rgb(69,117,180)"],
+    [1.0, "rgb(49,54,149)"],
+]
+default_cmap = [[1.0 - x[0], x[1]] for x in default_cmap[::-1]]
 
 PLOT_ARGS = SimpleNamespace(
     point_size=3.0,
     line_width=5.0,
     theme="plotly",
-    scale_factor= 1 / 20,
+    scale_factor=1 / 15,
     show_mesh_edges=True,
     mesh_edge_color="black",
     mesh_edge_width=1.0,
@@ -36,7 +49,7 @@ PLOT_ARGS = SimpleNamespace(
     color_pfem="#8080FF",
     color_constraint="#FF1493",
     color_bc="#15b01a",
-    cmap=None,  # "plasma",
+    cmap=default_cmap,  # "plasma",
     cmap_model=None,
 )
 
@@ -55,20 +68,20 @@ def set_plot_props(
         * line_width : float, optional
             Thickness of line elements.  Only valid for wireframe and surface
             representations.  Default ``3.0``.
-        * cmap : str, list, optional, default: "plasma"
-            One of the following named colorscales: [‘aggrnyl’, ‘agsunset’, ‘algae’, ‘amp’, ‘armyrose’,
-            ‘balance’, ‘blackbody’, ‘bluered’, ‘blues’, ‘blugrn’, ‘bluyl’, ‘brbg’, ‘brwnyl’, ‘bugn’,
-            ‘bupu’, ‘burg’, ‘burgyl’, ‘cividis’, ‘curl’, ‘darkmint’, ‘deep’, ‘delta’, ‘dense’,
-            ‘earth’, ‘edge’, ‘electric’, ‘emrld’, ‘fall’, ‘geyser’, ‘gnbu’, ‘gray’, ‘greens’, ‘greys’,
-            ‘haline’, ‘hot’, ‘hsv’, ‘ice’, ‘icefire’, ‘inferno’, ‘jet’, ‘magenta’, ‘magma’, ‘matter’,
-            ‘mint’, ‘mrybm’, ‘mygbm’, ‘oranges’, ‘orrd’, ‘oryel’, ‘oxy’, ‘peach’, ‘phase’, ‘picnic’,
-            ‘pinkyl’, ‘piyg’, ‘plasma’, ‘plotly3’, ‘portland’, ‘prgn’, ‘pubu’, ‘pubugn’, ‘puor’, ‘purd’,
-            ‘purp’, ‘purples’, ‘purpor’, ‘rainbow’, ‘rdbu’, ‘rdgy’, ‘rdpu’, ‘rdylbu’, ‘rdylgn’, ‘redor’,
-            ‘reds’, ‘solar’, ‘spectral’, ‘speed’, ‘sunset’, ‘sunsetdark’, ‘teal’, ‘tealgrn’, ‘tealrose’, ‘tempo’,
-            ‘temps’, ‘thermal’, ‘tropic’, ‘turbid’, ‘turbo’, ‘twilight’,
-            ‘viridis’, ‘ylgn’, ‘ylgnbu’, ‘ylorbr’, ‘ylorrd’].
+        * cmap : str, list, optional, default: None
+            One of the following named colorscales: ["aggrnyl", "agsunset", "algae", "amp", "armyrose",
+            "balance", "blackbody", "bluered", "blues", "blugrn", "bluyl", "brbg", "brwnyl", "bugn",
+            "bupu", "burg", "burgyl", "cividis", "curl", "darkmint", "deep", "delta", "dense",
+            "earth", "edge", "electric", "emrld", "fall", "geyser", "gnbu", "gray", "greens", "greys",
+            "haline", "hot", "hsv", "ice", "icefire", "inferno", "jet", "magenta", "magma", "matter",
+            "mint", "mrybm", "mygbm", "oranges", "orrd", "oryel", "oxy", "peach", "phase", "picnic",
+            "pinkyl", "piyg", "plasma", "plotly3", "portland", "prgn", "pubu", "pubugn", "puor", "purd",
+            "purp", "purples", "purpor", "rainbow", "rdbu", "rdgy", "rdpu", "rdylbu", "rdylgn", "redor",
+            "reds", "solar", "spectral", "speed", "sunset", "sunsetdark", "teal", "tealgrn", "tealrose", "tempo",
+            "temps", "thermal", "tropic", "turbid", "turbo", "twilight",
+            "viridis", "ylgn", "ylgnbu", "ylorbr", "ylorrd"].
 
-            Appending ‘_r’ to a named colorscale reverses it.
+            Appending "_r" to a named colorscale reverses it.
         * cmap_model : str, list, optional, default=None
             Matplotlib colormap used for geometry model visualization.
             Same as ``cmap``, except that this parameter will be used
@@ -97,7 +110,7 @@ def set_plot_props(
             HTML font family - the typeface that will be applied by the web browser.
             The web browser will only be able to apply a font if it is available on the system which it operates.
             Provide multiple font families, separated by commas, to indicate the preference in which to apply fonts
-            if they aren’t available on the system.
+            if they aren"t available on the system.
             The Chart Studio Cloud (at https://chart-studio.plotly.com or on-premise) generates images on a server,
             where only a select number of fonts are installed and supported.
             These include “Arial”, “Balto”, “Courier New”, “Droid Sans”, “Droid Serif”, “Droid Sans Mono”, “Gravitas One”,
@@ -114,15 +127,11 @@ def set_plot_props(
     -------
     None
     """
-    if "point_size" in kwargs.keys():
-        if abs(kwargs["point_size"]) < 1e-3:
-            kwargs["point_size"] = 1e-5
     for key, value in kwargs.items():
         setattr(PLOT_ARGS, key, value)
 
-def set_plot_colors(
-    **kwargs
-):
+
+def set_plot_colors(**kwargs):
     """
     Set the display color of various element types.
 
@@ -161,19 +170,19 @@ def set_plot_colors(
         * bc : str, list[int, int, int], optional
             Color for boundary conditions.
         * cmap : str, list, optional, default: "plasma"
-            One of the following named colorscales: [‘aggrnyl’, ‘agsunset’, ‘algae’, ‘amp’, ‘armyrose’,
-            ‘balance’, ‘blackbody’, ‘bluered’, ‘blues’, ‘blugrn’, ‘bluyl’, ‘brbg’, ‘brwnyl’, ‘bugn’,
-            ‘bupu’, ‘burg’, ‘burgyl’, ‘cividis’, ‘curl’, ‘darkmint’, ‘deep’, ‘delta’, ‘dense’,
-            ‘earth’, ‘edge’, ‘electric’, ‘emrld’, ‘fall’, ‘geyser’, ‘gnbu’, ‘gray’, ‘greens’, ‘greys’,
-            ‘haline’, ‘hot’, ‘hsv’, ‘ice’, ‘icefire’, ‘inferno’, ‘jet’, ‘magenta’, ‘magma’, ‘matter’,
-            ‘mint’, ‘mrybm’, ‘mygbm’, ‘oranges’, ‘orrd’, ‘oryel’, ‘oxy’, ‘peach’, ‘phase’, ‘picnic’,
-            ‘pinkyl’, ‘piyg’, ‘plasma’, ‘plotly3’, ‘portland’, ‘prgn’, ‘pubu’, ‘pubugn’, ‘puor’, ‘purd’,
-            ‘purp’, ‘purples’, ‘purpor’, ‘rainbow’, ‘rdbu’, ‘rdgy’, ‘rdpu’, ‘rdylbu’, ‘rdylgn’, ‘redor’,
-            ‘reds’, ‘solar’, ‘spectral’, ‘speed’, ‘sunset’, ‘sunsetdark’, ‘teal’, ‘tealgrn’, ‘tealrose’, ‘tempo’,
-            ‘temps’, ‘thermal’, ‘tropic’, ‘turbid’, ‘turbo’, ‘twilight’,
-            ‘viridis’, ‘ylgn’, ‘ylgnbu’, ‘ylorbr’, ‘ylorrd’].
+            One of the following named colorscales: ["aggrnyl", "agsunset", "algae", "amp", "armyrose",
+            "balance", "blackbody", "bluered", "blues", "blugrn", "bluyl", "brbg", "brwnyl", "bugn",
+            "bupu", "burg", "burgyl", "cividis", "curl", "darkmint", "deep", "delta", "dense",
+            "earth", "edge", "electric", "emrld", "fall", "geyser", "gnbu", "gray", "greens", "greys",
+            "haline", "hot", "hsv", "ice", "icefire", "inferno", "jet", "magenta", "magma", "matter",
+            "mint", "mrybm", "mygbm", "oranges", "orrd", "oryel", "oxy", "peach", "phase", "picnic",
+            "pinkyl", "piyg", "plasma", "plotly3", "portland", "prgn", "pubu", "pubugn", "puor", "purd",
+            "purp", "purples", "purpor", "rainbow", "rdbu", "rdgy", "rdpu", "rdylbu", "rdylgn", "redor",
+            "reds", "solar", "spectral", "speed", "sunset", "sunsetdark", "teal", "tealgrn", "tealrose", "tempo",
+            "temps", "thermal", "tropic", "turbid", "turbo", "twilight",
+            "viridis", "ylgn", "ylgnbu", "ylorbr", "ylorrd"].
 
-            Appending ‘_r’ to a named colorscale reverses it.
+            Appending "_r" to a named colorscale reverses it.
         * cmap_model : str, list, optional, default=None
             Matplotlib colormap used for geometry model visualization.
             Same as ``cmap``, except that this parameter will be used
@@ -194,9 +203,9 @@ def set_plot_colors(
         if key in ["cmap", "cmap_model"]:
             setattr(PLOT_ARGS, key, value)
         else:
-            setattr(PLOT_ARGS, "color_"+key, value)
-    if "frame" in kwargs.keys():
-        setattr(PLOT_ARGS, "color_beam", kwargs["frame"])
+            setattr(PLOT_ARGS, "color_" + key, value)
+    if "frame" in kwargs:
+        PLOT_ARGS.color_beam = kwargs["frame"]
 
 
 def _get_ele_color(ele_types: list[str]):
@@ -330,9 +339,7 @@ class _VTKElementTriangulator:
     def _add_tetra(self, idx):
         connections = [(0, 1, 2), (0, 1, 3), (0, 2, 3), (1, 2, 3)]
         self._add_vectors_from_tuples(idx, connections)
-        self._add_line_points(
-            idx, [(0, 1, 2, 0), (0, 1, 3, 0), (0, 2, 3, 0), (1, 2, 3, 1)]
-        )
+        self._add_line_points(idx, [(0, 1, 2, 0), (0, 1, 3, 0), (0, 2, 3, 0), (1, 2, 3, 1)])
 
     def _add_quadratic_tetra(self, idx):
         connections = [
@@ -597,20 +604,23 @@ def _plot_points(
     customdata=None,
     hovertemplate=None,
 ):
-    x, y, z = [pos[:, j] for j in range(3)]
-    point_plot = go.Scatter3d(
-        x=x,
-        y=y,
-        z=z,
-        marker=dict(size=size, color=color, symbol=symbol),
-        mode="markers",
-        name=name,
-        customdata=customdata,
-        hovertemplate=hovertemplate,
-        # hovertemplate="<b>x: %{x}</b><br>y: %{y}<br>z: %{z} <br>tag: %{customdata}",
-    )
-    plotter.append(point_plot)
-    return point_plot
+    if len(pos) > 0 and size > 0:
+        x, y, z = [pos[:, j] for j in range(3)]
+        point_plot = go.Scatter3d(
+            x=x,
+            y=y,
+            z=z,
+            marker={"size": size, "color": color, "symbol": symbol},
+            mode="markers",
+            name=name,
+            customdata=customdata,
+            hovertemplate=hovertemplate,
+            # hovertemplate="<b>x: %{x}</b><br>y: %{y}<br>z: %{z} <br>tag: %{customdata}",
+        )
+        plotter.append(point_plot)
+        return point_plot
+    else:
+        return None
 
 
 def _plot_points_cmap(
@@ -621,24 +631,33 @@ def _plot_points_cmap(
     coloraxis=None,
     size: float = 3.0,
     name="",
+    show_hover: bool = True,
+    color=None,
 ):
-    if clim is None:
-        clim = [np.min(scalars), np.max(scalars)]
-    point_plot = go.Scatter3d(
-        x=pos[:, 0],
-        y=pos[:, 1],
-        z=pos[:, 2],
-        marker=dict(
-            size=size, color=scalars, coloraxis=coloraxis, cmin=clim[0], cmax=clim[1]
-        ),
-        mode="markers",
-        name=name,
-        customdata=scalars,
-        hovertemplate="<b>%{customdata:.4E}</b>",
-        # hoverinfo="skip",
-    )
-    plotter.append(point_plot)
-    return point_plot
+    if len(pos) > 0 and size > 0:
+        if clim is None:
+            clim = [np.min(scalars), np.max(scalars)]
+        if show_hover:
+            hover_kargs = {"customdata": scalars, "hovertemplate": "<b>%{customdata:.4E}</b>"}
+        else:
+            hover_kargs = {"hoverinfo": "skip"}
+        if color is None:
+            marker = {"size": size, "color": scalars, "coloraxis": coloraxis, "cmin": clim[0], "cmax": clim[1]}
+        else:
+            marker = {"size": size, "color": color}
+        point_plot = go.Scatter3d(
+            x=pos[:, 0],
+            y=pos[:, 1],
+            z=pos[:, 2],
+            marker=marker,
+            mode="markers",
+            name=name,
+            **hover_kargs,
+        )
+        plotter.append(point_plot)
+        return point_plot
+    else:
+        return None
 
 
 def _plot_lines(
@@ -651,52 +670,54 @@ def _plot_lines(
     hovertemplate=None,
     hoverinfo=None,
 ):
-    x, y, z = [pos[:, j] for j in range(3)]
-    line_plot = go.Scatter3d(
-        x=x,
-        y=y,
-        z=z,
-        line=dict(color=color, width=width),
-        mode="lines",
-        name=name,
-        customdata=customdata,
-        hovertemplate=hovertemplate,
-        connectgaps=False,
-        hoverinfo=hoverinfo,
-        # hoverinfo="skip",
-    )
-    plotter.append(line_plot)
-    return line_plot
+    if len(pos) > 0:
+        x, y, z = [pos[:, j] for j in range(3)]
+        line_plot = go.Scatter3d(
+            x=x,
+            y=y,
+            z=z,
+            line={"color": color, "width": width},
+            mode="lines",
+            name=name,
+            customdata=customdata,
+            hovertemplate=hovertemplate,
+            connectgaps=False,
+            hoverinfo=hoverinfo,
+            # hoverinfo="skip",
+        )
+        plotter.append(line_plot)
+        return line_plot
+    else:
+        return None
 
 
-def _plot_lines_cmap(
-    plotter: list,
-    pos,
-    scalars,
-    coloraxis=None,
-    width=1.0,
-    clim=None,
-):
-    if clim is None:
-        clim = [scalars.min(), scalars.max()]
-    line_dict = dict(
-        color=scalars,
-        width=width,
-        cmin=clim[0],
-        cmax=clim[1],
-        coloraxis=coloraxis,
-    )
-    line_plot = go.Scatter3d(
-        x=pos[:, 0],
-        y=pos[:, 1],
-        z=pos[:, 2],
-        line=line_dict,
-        mode="lines",
-        connectgaps=False,
-        hoverinfo="skip",
-    )
-    plotter.append(line_plot)
-    return line_plot
+def _plot_lines_cmap(plotter: list, pos, scalars, coloraxis=None, width=1.0, clim=None, color=None):
+    if len(pos) > 0:
+        if clim is None:
+            clim = [scalars.min(), scalars.max()]
+        if color is None:
+            line_dict = {
+                "color": scalars,
+                "width": width,
+                "cmin": clim[0],
+                "cmax": clim[1],
+                "coloraxis": coloraxis,
+            }
+        else:
+            line_dict = {"color": color, "width": width}
+        line_plot = go.Scatter3d(
+            x=pos[:, 0],
+            y=pos[:, 1],
+            z=pos[:, 2],
+            line=line_dict,
+            mode="lines",
+            connectgaps=False,
+            hoverinfo="skip",
+        )
+        plotter.append(line_plot)
+        return line_plot
+    else:
+        return None
 
 
 def _plot_unstru(
@@ -720,23 +741,24 @@ def _plot_unstru(
 ):
     """plot the unstructured grid."""
     if style.lower() == "surface":
-        x, y, z = [pos[:, j] for j in range(3)]
-        grid = go.Mesh3d(
-            x=x,
-            y=y,
-            z=z,
-            i=veci,
-            j=vecj,
-            k=veck,
-            name=name,
-            color=color,
-            opacity=opacity,
-            customdata=customdata,
-            hovertemplate=hovertemplate,
-            hoverinfo=hoverinfo,
-            # hoverinfo="skip",
-        )
-        plotter.append(grid)
+        if len(pos) > 0:
+            x, y, z = [pos[:, j] for j in range(3)]
+            grid = go.Mesh3d(
+                x=x,
+                y=y,
+                z=z,
+                i=veci,
+                j=vecj,
+                k=veck,
+                name=name,
+                color=color,
+                opacity=opacity,
+                customdata=customdata,
+                hovertemplate=hovertemplate,
+                hoverinfo=hoverinfo,
+                # hoverinfo="skip",
+            )
+            plotter.append(grid)
         if show_edges:
             _plot_lines(
                 plotter,
@@ -770,6 +792,7 @@ def _plot_unstru_cmap(
     coloraxis=None,
     opacity=1.0,
     style="surface",
+    color=None,
     line_width: float = 2.0,
     show_edges: bool = True,
     edge_color: str = "black",
@@ -780,25 +803,29 @@ def _plot_unstru_cmap(
     if clim is None:
         clim = [scalars.min(), scalars.max()]
     if style.lower() == "surface":
-        kargs = dict(
-            text=scalars,
-            intensity=scalars,
-            cmin=clim[0],
-            cmax=clim[1],
-            coloraxis=coloraxis,
-        )
-        grid = go.Mesh3d(
-            x=pos[:, 0],
-            y=pos[:, 1],
-            z=pos[:, 2],
-            i=veci,
-            j=vecj,
-            k=veck,
-            opacity=opacity,
-            hoverinfo="skip",
-            **kargs,
-        )
-        plotter.append(grid)
+        if len(pos) > 0:
+            if color is None:
+                kargs = {
+                    "text": scalars,
+                    "intensity": scalars,
+                    "cmin": clim[0],
+                    "cmax": clim[1],
+                    "coloraxis": coloraxis,
+                }
+            else:
+                kargs = {"color": color}
+            grid = go.Mesh3d(
+                x=pos[:, 0],
+                y=pos[:, 1],
+                z=pos[:, 2],
+                i=veci,
+                j=vecj,
+                k=veck,
+                opacity=opacity,
+                hoverinfo="skip",
+                **kargs,
+            )
+            plotter.append(grid)
         if show_edges:
             _plot_lines(
                 plotter,
@@ -816,6 +843,7 @@ def _plot_unstru_cmap(
             clim=clim,
             coloraxis=coloraxis,
             width=line_width,
+            color=color,
         )
 
 
@@ -917,12 +945,12 @@ def _get_unstru_cells(unstru_data):
         unstru_tags = unstru_data.coords["eleTags"]
         unstru_cell_types = np.array(unstru_data[:, -1], dtype=int)
         unstru_cells = unstru_data.to_numpy()
-        if not np.any(np.isin(unstru_cells, -1)):
+        if not np.any(np.isnan(unstru_cells)):
             unstru_cells_new = unstru_cells[:, :-1].astype(int)
         else:
             unstru_cells_new = []
             for cell in unstru_cells:
-                num = cell[0]
+                num = int(cell[0])
                 data = [num] + [int(data) for data in cell[1 : 1 + num]]
                 unstru_cells_new.extend(data)
     else:
@@ -940,57 +968,9 @@ def _dropnan_by_time(da, model_update=False):
             cleaned_dataarrays.append([])
         else:
             dim2 = dims[1]
-            if model_update:
-                da_2d_cleaned = da_2d.dropna(dim=dim2, how="any")
-            else:
-                da_2d_cleaned = da_2d
+            da_2d_cleaned = da_2d.dropna(dim=dim2, how="any") if model_update else da_2d
             cleaned_dataarrays.append(da_2d_cleaned)
     return cleaned_dataarrays
-
-
-def _get_plotly_dim_scene(mode='3d', show_outline=True):
-    if show_outline:
-        off_axis = {"showgrid": True, "zeroline": True, "visible": True}
-    else:
-        off_axis = {"showgrid": False, "zeroline": False, "visible": False}
-    if mode.lower() == '3d':
-        eye = dict(x=-3.5, y=-3.5, z=3.5)  # for 3D camera
-        scene = dict(
-            aspectratio=dict(x=1, y=1, z=1),
-            aspectmode="data",
-            camera=dict(eye=eye, projection=dict(type="orthographic")),
-            xaxis=off_axis,
-            yaxis=off_axis,
-            zaxis=off_axis,
-        )
-    elif mode.lower() == '2d':
-        if show_outline:
-            xaxis = dict(showbackground=False)
-            yaxis = dict(showbackground=False)
-            zaxis = dict(
-                showbackground=True,
-                showticklabels=False,
-                showgrid=True,
-                title='',
-                ticks='',
-                visible=True
-            )
-        else:
-            xaxis = off_axis
-            yaxis = off_axis
-            zaxis = off_axis
-        eye = dict(x=0.0, y=-0.1, z=10)  # for 2D camera
-        scene = dict(
-            camera=dict(eye=eye),
-            aspectmode='data',
-            dragmode='pan',
-            xaxis=xaxis,
-            yaxis=yaxis,
-            zaxis=zaxis,
-        )
-    else:
-        raise ValueError("mode must be '2d' or '3d'")
-    return scene
 
 
 # def group_cells(cells):

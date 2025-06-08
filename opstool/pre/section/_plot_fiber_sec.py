@@ -1,18 +1,19 @@
-import numpy as np
+from typing import Optional, Union
+
 import matplotlib.pyplot as plt
+import numpy as np
 import openseespy.opensees as ops
-from typing import Union
 from matplotlib.collections import PatchCollection
 
 
 def vis_fiber_sec_real(
-        ele_tag: int,
-        sec_num: int = 1,
-        color: str = None,
-        show_matTag: bool = False,
-        highlight_matTag: Union[list[int], int] = None,
-        highlight_color: Union[list, str, tuple] = "k",
-        ax=None,
+    ele_tag: int,
+    sec_num: int = 1,
+    color: Optional[str] = None,
+    show_matTag: bool = False,
+    highlight_matTag: Optional[Union[list[int], int]] = None,
+    highlight_color: Union[list, str, tuple] = "k",
+    ax=None,
 ):
     """
     Visualizing the actual fiber section data,
@@ -56,19 +57,13 @@ def vis_fiber_sec_real(
         aspect_ratio = 0.333
     if aspect_ratio >= 3:
         aspect_ratio = 3
-    if aspect_ratio < 1:
-        figsize = 8, 8
-    else:
-        figsize = 6, 6 * aspect_ratio
+    figsize = (8, 8) if aspect_ratio < 1 else (6, 6 * aspect_ratio)
     if ax is None:
         fig, ax = plt.subplots(figsize=figsize)
 
     plt.style.use("fivethirtyeight")
 
-    patches = [
-        plt.Circle((yloc, zloc), np.sqrt(area / np.pi))
-        for yloc, zloc, area in zip(ylocs, zlocs, areas)
-    ]
+    patches = [plt.Circle((yloc, zloc), np.sqrt(area / np.pi)) for yloc, zloc, area in zip(ylocs, zlocs, areas)]
     if show_matTag:
         for yloc, zloc, mat in zip(ylocs, zlocs, mats):
             ax.text(
@@ -99,9 +94,7 @@ def vis_fiber_sec_real(
                 plt.Circle((yloc, zloc), np.sqrt(area / np.pi))
                 for yloc, zloc, area in zip(rebar_ys, rebar_zs, rebar_areas)
             ]
-            coll_rebar = PatchCollection(
-                patches_rebar, color=color, alpha=1
-            )
+            coll_rebar = PatchCollection(patches_rebar, color=color, alpha=1)
             ax.add_collection(coll_rebar)
     if aspect_ratio == 1:
         ax.set_aspect("equal")

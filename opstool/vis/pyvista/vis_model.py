@@ -1,4 +1,3 @@
-import warnings
 from typing import Optional, Union
 
 import matplotlib.pyplot as plt
@@ -7,7 +6,8 @@ import pyvista as pv
 from numpy.linalg import norm
 
 from ...post import load_model_data
-from ...utils import CONSTANTS, gram_schmidt
+from ...utils import CONFIGS, gram_schmidt
+from .plot_resp_base import PlotResponseBase, _plot_bc, _plot_mp_constraint
 from .plot_utils import (
     PLOT_ARGS,
     _get_ele_color,
@@ -18,15 +18,15 @@ from .plot_utils import (
     _plot_unstru,
 )
 
-PKG_NAME = CONSTANTS.get_pkg_name()
+PKG_NAME = CONFIGS.get_pkg_name()
 
 
-class PlotModelBase:
+class PlotModelBase(PlotResponseBase):
     def __init__(self, model_info: dict, cells: dict):
         # --------------------------------------------------------------
         self.nodal_data = model_info["NodalData"]
-        if "tags" in self.nodal_data.coords:
-            self.nodal_tags = self.nodal_data.coords["tags"].values
+        if "nodeTags" in self.nodal_data.coords:
+            self.nodal_tags = self.nodal_data.coords["nodeTags"].values
         else:
             raise ValueError("Model have no nodal data!")  # noqa: TRY003
         self.points = self.nodal_data.to_numpy()
@@ -174,12 +174,12 @@ class PlotModelBase:
             show_zaxis=self.show_zaxis,
         )
 
-    def plot_bc(self, plotter, alpha: float = 1.0):
+    def plot_bc(self, plotter, alpha: float = 1.0, points_new: Optional[np.ndarray] = None):
         if len(self.fixed_node_data) > 0:
             fixed_data = self.fixed_node_data.to_numpy()
             fixed_dofs = fixed_data[:, -6:].astype(int)
-            fixed_coords = fixed_data[:, :3]
-            s = (self.max_bound_size + self.min_bound_size) / 100 * alpha
+            fixed_coords = points_new if points_new is not None else fixed_data[:, :3]
+            s = (self.max_bound_size + self.min_bound_size) / 75 * alpha
             bc_plot = _plot_bc(
                 plotter,
                 fixed_dofs,
@@ -560,26 +560,9 @@ class PlotModelBase:
         )
         return pplot
 
-    def update(self, plotter, cpos):
+    def add_model_info(self, plotter):
         txt = f"{PKG_NAME}:: Num. Node: {len(self.nodal_tags)} Num. Ele: {len(self.ele_tags)}"
-        plotter.add_text(txt, position="lower_right", font_size=10, font="courier")
-        plotter.add_axes()
-        # --------------------------------------------------------------------------------------
-        viewer = {
-            "xy": plotter.view_xy,
-            "yx": plotter.view_yx,
-            "xz": plotter.view_xz,
-            "zx": plotter.view_zx,
-            "yz": plotter.view_yz,
-            "zy": plotter.view_zy,
-            "iso": plotter.view_isometric,
-        }
-        if not self.show_zaxis:
-            cpos = "xy"
-            plotter.enable_2d_style()
-            plotter.enable_parallel_projection()
-        viewer[cpos]()
-        return plotter
+        plotter.add_text(txt, position="lower_left", font_size=12, font="courier")
 
 
 def plot_model(
@@ -702,124 +685,5 @@ def plot_model(
         plotter.add_legend(bcolor=None)
     if PLOT_ARGS.anti_aliasing:
         plotter.enable_anti_aliasing(PLOT_ARGS.anti_aliasing, multi_samples=PLOT_ARGS.msaa_multi_samples)
-    return plotbase.update(plotter, cpos)
-
-
-def _get_bc_points_cells(fixed_coords, fixed_dofs, s, show_zaxis):
-    points, cells = [], []
-    fixed_dofs = ["".join(map(str, row)) for row in fixed_dofs]
-    for coord, dof in zip(fixed_coords, fixed_dofs):
-        x, y, z = coord
-        if not show_zaxis:
-            z += s / 2
-            # y -= s / 2
-        if dof[0] == "1":
-            idx = len(points)
-            points.extend([
-                [x, y - s / 2, z - s / 2],
-                [x, y + s / 2, z - s / 2],
-                [x, y + s / 2, z + s / 2],
-                [x, y - s / 2, z + s / 2],
-            ])
-            cells.extend([
-                2,
-                idx,
-                idx + 1,
-                2,
-                idx + 1,
-                idx + 2,
-                2,
-                idx + 2,
-                idx + 3,
-                2,
-                idx + 3,
-                idx,
-            ])
-        if dof[1] == "1":
-            idx = len(points)
-            points.extend([
-                [x - s / 2, y, z - s / 2],
-                [x + s / 2, y, z - s / 2],
-                [x + s / 2, y, z + s / 2],
-                [x - s / 2, y, z + s / 2],
-            ])
-            cells.extend([
-                2,
-                idx,
-                idx + 1,
-                2,
-                idx + 1,
-                idx + 2,
-                2,
-                idx + 2,
-                idx + 3,
-                2,
-                idx + 3,
-                idx,
-            ])
-        if dof[2] == "1":
-            idx = len(points)
-            points.extend([
-                [x - s / 2, y - s / 2, z],
-                [x + s / 2, y - s / 2, z],
-                [x + s / 2, y + s / 2, z],
-                [x - s / 2, y + s / 2, z],
-            ])
-            cells.extend([
-                2,
-                idx,
-                idx + 1,
-                2,
-                idx + 1,
-                idx + 2,
-                2,
-                idx + 2,
-                idx + 3,
-                2,
-                idx + 3,
-                idx,
-            ])
-    return points, cells
-
-
-def _plot_bc(plotter, fixed_dofs, fixed_coords, s, show_zaxis, color):
-    bc_plot = None
-    if len(fixed_coords) > 0:
-        points, cells = _get_bc_points_cells(fixed_coords, fixed_dofs, s, show_zaxis)
-        bc_plot = _plot_lines(
-            plotter,
-            points,
-            cells,
-            color=color,
-            render_lines_as_tubes=False,
-            width=1,
-        )
-    else:
-        warnings.warn("Info:: Model has no fixed nodes!", stacklevel=2)
-    return bc_plot
-
-
-def _plot_mp_constraint(
-    plotter,
-    points,
-    cells,
-    dofs,
-    midcoords,
-    lw,
-    color,
-    show_dofs=False,
-):
-    pplot = _plot_lines(plotter, points, cells, width=lw, color=color, label="MP Constraint")
-    dofs = ["".join(map(str, row)) for row in dofs]
-    if show_dofs and len(cells) > 0:
-        plotter.add_point_labels(
-            midcoords,
-            dofs,
-            text_color=color,
-            font_size=12,
-            bold=True,
-            show_points=False,
-            always_visible=True,
-            shape_opacity=0,
-        )
-    return pplot
+    plotbase.add_model_info(plotter)
+    return plotbase._update_plotter(plotter, cpos)

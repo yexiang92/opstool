@@ -2,24 +2,27 @@
 SecMesh: A module to mesh the cross-section with triangular fibers
 """
 
+from typing import Optional, Union
+
 import matplotlib.pyplot as plt
 import numpy as np
 import openseespy.opensees as ops
-from typing import Union
 from matplotlib.collections import PatchCollection
+from rich.table import Table
 from sectionproperties.analysis.section import Section
 from sectionproperties.pre.geometry import CompoundGeometry, Geometry
-from sectionproperties.pre.pre import Material, DEFAULT_MATERIAL
+from sectionproperties.pre.pre import DEFAULT_MATERIAL, Material
 from shapely.geometry import LineString, Polygon
-from rich.table import Table
-from ...utils import CONSTANTS, get_random_color, get_random_color_rich
-CONSOLE = CONSTANTS.CONSOLE
-PKG_PREFIX = CONSTANTS.PKG_PREFIX
+
+from ...utils import CONFIGS, get_random_color, get_random_color_rich
+
+CONSOLE = CONFIGS.CONSOLE
+PKG_PREFIX = CONFIGS.PKG_PREFIX
 
 
 def create_polygon_points(
-    start: Union[list[float, float], tuple[float, float]] = (0., 0.),
-    incrs: list[list[float, float]] = None,
+    start: Union[list[float, float], tuple[float, float]] = (0.0, 0.0),
+    incrs: Optional[list[list[float, float]]] = None,
     close: bool = False,
 ):
     """Create a polygon points.
@@ -46,6 +49,7 @@ def create_polygon_points(
     if close:
         points.append(points[0])
     return points
+
 
 def create_circle_points(
     xo: list,
@@ -195,7 +199,7 @@ def create_material(
 
 def create_polygon_patch(
     outline: list,
-    holes: list = None,
+    holes: Optional[list] = None,
     material=None,
 ):
     """Add a polygon plane geom object.
@@ -216,10 +220,7 @@ def create_polygon_patch(
         `Geometry <https://sectionproperties.readthedocs.io/en/stable/user_guide/geometry.html>`_ in
          ``sectionproperties``.
     """
-    if material is None:
-        material_ = DEFAULT_MATERIAL
-    else:
-        material_ = material
+    material_ = DEFAULT_MATERIAL if material is None else material
     # close or not
     vec = np.array(outline[0]) - np.array(outline[-1])
     if np.linalg.norm(vec) < 1e-8:
@@ -269,10 +270,7 @@ def create_circle_patch(
         `Geometry <https://sectionproperties.readthedocs.io/en/stable/user_guide/geometry.html>`_ in
          ``sectionproperties``.
     """
-    if material is None:
-        material_ = DEFAULT_MATERIAL
-    else:
-        material_ = material
+    material_ = DEFAULT_MATERIAL if material is None else material
     angle1 = angle1 / 180 * np.pi
     angle2 = angle2 / 180 * np.pi
     x, y = xo[0], xo[1]
@@ -283,9 +281,7 @@ def create_circle_patch(
     return geometry
 
 
-def create_patch_from_dxf(
-    filepath: str, spline_delta: float = 0.1, degrees_per_segment: float = 1
-):
+def create_patch_from_dxf(filepath: str, spline_delta: float = 0.1, degrees_per_segment: float = 1):
     """An interface for the creation of Geometry objects from CAD .dxf files.
     See
     `sectionproperties docs <https://sectionproperties.readthedocs.io/en/stable/examples/geometry/geometry_cad.html>`_.
@@ -356,9 +352,9 @@ class FiberSecMesh:
         self.section_mesh_sizes = None
         # ------------------------
         self.fibrt_points = None
-        self.fiber_cells_map = dict()
-        self.fiber_centers_map = dict()
-        self.fiber_areas_map = dict()
+        self.fiber_cells_map = {}
+        self.fiber_centers_map = {}
+        self.fiber_areas_map = {}
         self.centroid = None
         self.geom_area = 0.0
         self.area = 0.0
@@ -367,25 +363,22 @@ class FiberSecMesh:
         self.J = 0.0
 
         # * data group
-        self.geom_group_map = dict()
-        self.mat_ops_map = dict()
-        self.mesh_size_map = dict()
-        self.color_map = dict()
+        self.geom_group_map = {}
+        self.mat_ops_map = {}
+        self.mesh_size_map = {}
+        self.color_map = {}
         self.geom_names = []
 
         # *rebar data
         self.rebar_data = []
 
         # * section geo props
-        self.sec_props = dict()
-        self.frame_sec_props = dict()
+        self.sec_props = {}
+        self.frame_sec_props = {}
 
         self.is_centring = False
 
-    def add_patch_group(
-            self,
-            patches: Union[dict[Geometry], list[Geometry], tuple[Geometry], Geometry]
-    ):
+    def add_patch_group(self, patches: Union[dict[Geometry], list[Geometry], tuple[Geometry], Geometry]):
         """Add the patches.
 
         Parameters
@@ -401,10 +394,10 @@ class FiberSecMesh:
             self.geom_group_map.update(patches)
         elif isinstance(patches, (list, tuple, set)):
             for patch in patches:
-                name = f"patch{len(self.geom_group_map)+1}"
+                name = f"patch{len(self.geom_group_map) + 1}"
                 self.geom_group_map[name] = patch
         else:
-            name = f"patch{len(self.geom_group_map)+1}"
+            name = f"patch{len(self.geom_group_map) + 1}"
             self.geom_group_map[name] = patches
         return self
 
@@ -417,7 +410,7 @@ class FiberSecMesh:
         """
         return self.geom_group_map
 
-    def rotate_section_geometry(self, angle: float, rot_point: tuple[float, float] | str = 'center'):
+    def rotate_section_geometry(self, angle: float, rot_point: tuple[float, float] | str = "center"):
         """Rotate the patch group.
         Rotates the patch and specified angle about a point.
         If the rotation point is not provided,
@@ -435,7 +428,7 @@ class FiberSecMesh:
         """
         if self.section_geom is None:
             self._to_geometry()
-        if rot_point == 'center':
+        if rot_point == "center":
             cx, cy = self.section_geom.calculate_centroid()
         else:
             cx, cy = rot_point
@@ -447,9 +440,7 @@ class FiberSecMesh:
         cx, cy = self.section_geom.calculate_centroid()
         self.section_geom = self.section_geom.shift_section(x_offset=-cx, y_offset=-cy)
 
-    def set_mesh_size(
-        self, mesh_size: Union[dict[str, float], list[float], tuple[float], float]
-    ):
+    def set_mesh_size(self, mesh_size: Union[dict[str, float], list[float], tuple[float], float]):
         """Assign the mesh size dict for each mesh.
 
         Parameters
@@ -467,25 +458,21 @@ class FiberSecMesh:
         instance
         """
         if not self.geom_group_map:
-            raise ValueError("The add_patch_group method should be run first!")
+            raise ValueError("The add_patch_group method should be run first!")  # noqa: TRY003
         if isinstance(mesh_size, dict):
-            for name in mesh_size.keys():
-                if name not in self.geom_group_map.keys():
-                    raise ValueError(
-                        f"{name} is not specified in the add_patch_group function!"
-                    )
+            for name in mesh_size:
+                if name not in self.geom_group_map:
+                    raise ValueError(f"{name} is not specified in the add_patch_group function!")  # noqa: TRY003
             self.mesh_size_map.update(mesh_size)
         elif isinstance(mesh_size, (list, tuple, set)):
             for i, name in enumerate(self.geom_group_map.keys()):
                 self.mesh_size_map[name] = mesh_size[i]
         else:
-            for i, name in enumerate(self.geom_group_map.keys()):
+            for _i, name in enumerate(self.geom_group_map.keys()):
                 self.mesh_size_map[name] = mesh_size
         return self
 
-    def set_ops_mat_tag(
-        self, mat_tag: Union[dict[str, int], list[int], tuple[int], int]
-    ):
+    def set_ops_mat_tag(self, mat_tag: Union[dict[str, int], list[int], tuple[int], int]):
         """Assign the opensees mat tag for each mesh.
 
         Parameters
@@ -500,19 +487,17 @@ class FiberSecMesh:
         instance
         """
         if not self.geom_group_map:
-            raise ValueError("The add_patch_group method should be run first!")
+            raise ValueError("The add_patch_group method should be run first!")  # noqa: TRY003
         if isinstance(mat_tag, dict):
-            for name in mat_tag.keys():
-                if name not in self.geom_group_map.keys():
-                    raise ValueError(
-                        f"{name} is not specified in the add_patch_group function!"
-                    )
+            for name in mat_tag:
+                if name not in self.geom_group_map:
+                    raise ValueError(f"{name} is not specified in the add_patch_group function!")  # noqa: TRY003
             self.mat_ops_map.update(mat_tag)
         elif isinstance(mat_tag, (list, tuple, set)):
             for i, name in enumerate(self.geom_group_map.keys()):
                 self.mat_ops_map[name] = mat_tag[i]
         else:
-            for i, name in enumerate(self.geom_group_map.keys()):
+            for _i, name in enumerate(self.geom_group_map.keys()):
                 self.mat_ops_map[name] = mat_tag
         return self
 
@@ -525,19 +510,17 @@ class FiberSecMesh:
             If dict, the patch name as a key, color as value.
         """
         if not self.geom_group_map:
-            raise ValueError("The add_patch_group method should be run first!")
+            raise ValueError("The add_patch_group method should be run first!")  # noqa: TRY003
         if isinstance(colors, dict):
-            for name in colors.keys():
-                if name not in self.geom_group_map.keys():
-                    raise ValueError(
-                        f"{name} is not specified in the add_patch_group function!"
-                    )
+            for name in colors:
+                if name not in self.geom_group_map:
+                    raise ValueError(f"{name} is not specified in the add_patch_group function!")  # noqa: TRY003
             self.color_map.update(colors)
         elif isinstance(colors, (list, tuple, set)):
             for i, name in enumerate(self.geom_group_map.keys()):
                 self.color_map[name] = colors[i]
         else:
-            for i, name in enumerate(self.geom_group_map.keys()):
+            for _i, name in enumerate(self.geom_group_map.keys()):
                 self.color_map[name] = colors
         return self
 
@@ -610,12 +593,12 @@ class FiberSecMesh:
         triangle_attributes = self.mesh_obj["triangle_attributes"]
         attributes = np.unique(triangle_attributes)
         attributes = np.atleast_1d(attributes)
-        for name in self.geom_group_map.keys():
+        for name in self.geom_group_map:
             self.fiber_cells_map[name] = []
         for name, attri in zip(self.geom_names, attributes):
             idx = triangle_attributes == attri
             self.fiber_cells_map[name].append(triangles[idx[:, 0]])
-        for name in self.geom_group_map.keys():
+        for name in self.geom_group_map:
             self.fiber_cells_map[name] = np.vstack(self.fiber_cells_map[name])
         # * fiber data
         iys, izs = [], []
@@ -630,9 +613,7 @@ class FiberSecMesh:
                 x1, y1 = coord1[:2]
                 x2, y2 = coord2[:2]
                 x3, y3 = coord3[:2]
-                area_ = 0.5 * np.abs(
-                    x2 * y3 + x1 * y2 + x3 * y1 - x3 * y2 - x2 * y1 - x1 * y3
-                )
+                area_ = 0.5 * np.abs(x2 * y3 + x1 * y2 + x3 * y1 - x3 * y2 - x2 * y1 - x1 * y3)
                 areas.append(area_)
                 iys.append(area_ * xyo[1] ** 2)
                 izs.append(area_ * xyo[0] ** 2)
@@ -640,7 +621,7 @@ class FiberSecMesh:
             self.fiber_centers_map[name] = np.array(centers)
         centers = []
         areas = []
-        for name in self.fiber_cells_map.keys():
+        for name in self.fiber_cells_map:
             centers.append(self.fiber_centers_map[name])
             areas.append(self.fiber_areas_map[name])
         centers = np.vstack(centers)
@@ -683,7 +664,7 @@ class FiberSecMesh:
         self,
         points: list,
         dia: float,
-        ops_mat_tag: int = None,
+        ops_mat_tag: Optional[int] = None,
         color: str = "black",
         group_name: str = "Rebar",
     ):
@@ -708,9 +689,7 @@ class FiberSecMesh:
         None
         """
         rebar_xy = np.array(points)
-        data = dict(
-            rebar_xy=rebar_xy, color=color, name=group_name, dia=dia, matTag=ops_mat_tag
-        )
+        data = {"rebar_xy": rebar_xy, "color": color, "name": group_name, "dia": dia, "matTag": ops_mat_tag}
         self.rebar_data.append(data)
 
     def add_rebar_line(
@@ -718,9 +697,9 @@ class FiberSecMesh:
         points: list,
         dia: float,
         gap: float = 0.1,
-        n: int = None,
+        n: Optional[int] = None,
         closure: bool = False,
-        ops_mat_tag: int = None,
+        ops_mat_tag: Optional[int] = None,
         color: str = "black",
         group_name: str = "Rebar",
     ):
@@ -754,19 +733,16 @@ class FiberSecMesh:
         -------
         None
         """
-        if closure:
-            if points[-1] != points[0]:
-                points = list(points)
-                points.append(points[0])
+        if closure and points[-1] != points[0]:
+            points = list(points)
+            points.append(points[0])
         rebar_lines = LineString(points)
         x, y = rebar_lines.xy
         if n:
             gap = rebar_lines.length / (n - 1)
         # mesh rebar points based on spacing
         rebar_xy = _lines_subdivide(x, y, gap)
-        data = dict(
-            rebar_xy=rebar_xy, color=color, name=group_name, dia=dia, matTag=ops_mat_tag
-        )
+        data = {"rebar_xy": rebar_xy, "color": color, "name": group_name, "dia": dia, "matTag": ops_mat_tag}
         self.rebar_data.append(data)
 
     def add_rebar_circle(
@@ -775,9 +751,9 @@ class FiberSecMesh:
         radius: float,
         dia: float,
         gap: float = 0.1,
-        n: int = None,
+        n: Optional[int] = None,
         angles: Union[list, tuple] = (0.0, 360),
-        ops_mat_tag: int = None,
+        ops_mat_tag: Optional[int] = None,
         color: str = "black",
         group_name: str = "Rebar",
     ):
@@ -815,19 +791,12 @@ class FiberSecMesh:
         angle1 = angle1 / 180 * np.pi
         angle2 = angle2 / 180 * np.pi
         arc_len = (angle2 - angle1) * radius
-        if n:
-            n_sub = n - 1
-        else:
-            n_sub = int(arc_len / gap)
+        n_sub = n - 1 if n else int(arc_len / gap)
         xc, yc = xo[0], xo[1]
         angles = np.linspace(angle1, angle2, n_sub + 1)
-        points = [
-            [xc + radius * np.cos(ang), yc + radius * np.sin(ang)] for ang in angles
-        ]
+        points = [[xc + radius * np.cos(ang), yc + radius * np.sin(ang)] for ang in angles]
         rebar_xy = points
-        data = dict(
-            rebar_xy=rebar_xy, color=color, name=group_name, dia=dia, matTag=ops_mat_tag
-        )
+        data = {"rebar_xy": rebar_xy, "color": color, "name": group_name, "dia": dia, "matTag": ops_mat_tag}
         self.rebar_data.append(data)
 
     def get_rebars_num(self):
@@ -884,7 +853,7 @@ class FiberSecMesh:
         else:
             txt1 = get_random_color_rich("get_frame_props()")
             txt2 = get_random_color_rich("get_sec_props()")
-            raise RuntimeError(f"{PKG_PREFIX}Please run method {txt1} or {txt2} first!")
+            raise RuntimeError(f"{PKG_PREFIX}Please run method {txt1} or {txt2} first!")  # noqa: TRY003
 
     def get_geom_area(self):
         """Return the total geometric area of a section.
@@ -981,23 +950,23 @@ class FiberSecMesh:
         self.Iy = ixx_c
         self.Iz = iyy_c
         rho_rebar = self.get_rebars_area() / self.geom_area
-        sec_props = dict(
-            A=self.area,
-            Asy=area_sx,
-            Asz=area_sy,
-            centroid=(cx, cy),
-            Iy=ixx_c,
-            Iz=iyy_c,
-            Iyz=ixy_c,
-            Wyt=zxx_plus,
-            Wyb=zxx_minus,
-            Wzt=zyy_plus,
-            Wzb=zyy_minus,
-            J=self.J,
-            phi=phi,
-            mass=mass,
-            rho_rebar=rho_rebar,
-        )
+        sec_props = {
+            "A": self.area,
+            "Asy": area_sx,
+            "Asz": area_sy,
+            "centroid": (cx, cy),
+            "Iy": ixx_c,
+            "Iz": iyy_c,
+            "Iyz": ixy_c,
+            "Wyt": zxx_plus,
+            "Wyb": zxx_minus,
+            "Wzt": zyy_plus,
+            "Wzb": zyy_minus,
+            "J": self.J,
+            "phi": phi,
+            "mass": mass,
+            "rho_rebar": rho_rebar,
+        }
         self.sec_props = sec_props
 
     def get_sec_props(
@@ -1111,9 +1080,7 @@ class FiberSecMesh:
             self.section.plot_centroids()
         return self.sec_props
 
-    def get_frame_props(
-        self, Eref: float = 1.0, display_results: bool = False, fmt: str = "8.3E"
-    ):
+    def get_frame_props(self, Eref: float = 1.0, display_results: bool = False, fmt: str = "8.3E"):
         """Calculates and returns the properties required for a frame analysis.
         See
         `sectionproperties frame_properties <https://sectionproperties.readthedocs.io/en/stable/gen/sectionproperties.
@@ -1164,9 +1131,7 @@ class FiberSecMesh:
             and the z-axis refers to the ordinate direction.
         """
         # self.section.calculate_geometric_properties()
-        (area, ixx_c, iyy_c, ixy_c, j, phi) = self.section.calculate_frame_properties(
-            solver_type="direct"
-        )
+        (area, ixx_c, iyy_c, ixy_c, j, phi) = self.section.calculate_frame_properties(solver_type="direct")
         cx, cy = (0.0, 0.0) if self.is_centring else self.section.get_c()
         # self.section.section_props.calculate_centroidal_properties(self.points)
         if self.section.is_composite():
@@ -1185,20 +1150,20 @@ class FiberSecMesh:
             self.Iz = iyy_c
             self.J = j
         rho_rebar = self.get_rebars_area() / self.geom_area
-        sec_props = dict(
-            A=self.area,
-            centroid=(cx, cy),
-            Iy=self.Iy,
-            Iz=self.Iz,
-            Iyz=ixy_c,
-            Wyt=zxx_plus,
-            Wyb=zxx_minus,
-            Wzt=zyy_plus,
-            Wzb=zyy_minus,
-            J=self.J,
-            phi=phi,
-            rho_rebar=rho_rebar,
-        )
+        sec_props = {
+            "A": self.area,
+            "centroid": (cx, cy),
+            "Iy": self.Iy,
+            "Iz": self.Iz,
+            "Iyz": ixy_c,
+            "Wyt": zxx_plus,
+            "Wyb": zxx_minus,
+            "Wzt": zyy_plus,
+            "Wzb": zyy_minus,
+            "J": self.J,
+            "phi": phi,
+            "rho_rebar": rho_rebar,
+        }
         if display_results:
             syms = [
                 "A",
@@ -1234,9 +1199,7 @@ class FiberSecMesh:
             table.add_column("Definition", style="green")
             for sym_, def_ in zip(syms, defs):
                 if sym_ != "centroid":
-                    table.add_row(
-                        sym_, "{:>{fmt}}".format(sec_props[sym_], fmt=fmt), def_
-                    )
+                    table.add_row(sym_, "{:>{fmt}}".format(sec_props[sym_], fmt=fmt), def_)
                 else:
                     table.add_row(
                         sym_,
@@ -1266,83 +1229,43 @@ class FiberSecMesh:
 
     @staticmethod
     def _plot_stress(stress_post, plot_stress, **kargs):
-        # ------------Primary Stress Plots
-        if plot_stress == "n_xx":
-            stress_type = "n_zz"
-            title = "Stress Contour Plot - $\\sigma_{xx,N}$"
-        elif plot_stress == "myy_xx":
-            stress_type = "mxx_zz"
-            title = "Stress Contour Plot - $\\sigma_{xx,Myy}$"
-        elif plot_stress == "mzz_xx":
-            stress_type = "myy_zz"
-            title = "Stress Contour Plot - $\\sigma_{xx,Mzz}$"
-        elif plot_stress == "m_xx":
-            stress_type = "m_zz"
-            title = "Stress Contour Plot - $\\sigma_{xx,\\Sigma M}$"
-        elif plot_stress == "mxx_xy":
-            stress_type = "mzz_zx"
-            title = "Stress Contour Plot - $\\tau_{xy,Mxx}$"
-        elif plot_stress == "mxx_xz":
-            stress_type = "mzz_zy"
-            title = "Stress Contour Plot - $\\tau_{xz,Mxx}$"
-        elif plot_stress == "mxx_xyz":
-            stress_type = "mzz_zxy"
-            title = "Stress Contour Plot - $\\tau_{xyz,Mxx}$"
-        elif plot_stress == "vy_xy":
-            stress_type = "vx_zx"
-            title = "Stress Contour Plot - $\\tau_{xy,Vy}$"
-        elif plot_stress == "vy_xz":
-            stress_type = "vx_zy"
-            title = "Stress Contour Plot - $\\tau_{xz,Vy}$"
-        elif plot_stress == "vy_xyz":
-            stress_type = "vx_zxy"
-            title = "Stress Contour Plot - $\\tau_{xyz,Vy}"
-        elif plot_stress == "vz_xy":
-            stress_type = "vy_zx"
-            title = "Stress Contour Plot - $\\tau_{xy,Vz}$"
-        elif plot_stress == "vz_xz":
-            stress_type = "vy_zy"
-            title = "Stress Contour Plot - $\\tau_{xz,Vz}$"
-        elif plot_stress == "vz_xyz":
-            stress_type = "vy_zxy"
-            title = "Stress Contour Plot - $\\tau_{xyz,Vz}$"
-        elif plot_stress == "v_xy":
-            stress_type = "v_zx"
-            title = "Stress Contour Plot - $\\tau_{xy,V}$"
-        elif plot_stress == "v_xz":
-            stress_type = "v_zy"
-            title = "Stress Contour Plot - $\\tau_{xz,V}$"
-        elif plot_stress == "v_xyz":
-            stress_type = "v_zxy"
-            title = "Stress Contour Plot - $\\tau_{xyz,V}$"
-        # ------------Combined Stress Plots
-        elif plot_stress == "xx":
-            stress_type = "zz"
-            title = "Stress Contour Plot - $\\sigma_{xx}$"
-        elif plot_stress == "xy":
-            stress_type = "zx"
-            title = "Stress Contour Plot - $\\tau_{xy}$"
-        elif plot_stress == "xz":
-            stress_type = "zy"
-            title = "Stress Contour Plot - $\\tau_{xz}$"
-        elif plot_stress == "xyz":
-            stress_type = "zxy"
-            title = "Stress Contour Plot - $\\tau_{xyz}$"
-        elif plot_stress == "p1":
-            stress_type = "11"
-            title = "Stress Contour Plot - $\\sigma_{1}$"
-        elif plot_stress == "p3":
-            stress_type = "33"
-            title = "Stress Contour Plot - $\\sigma_{3}$"
-        elif plot_stress == "vm":
-            stress_type = "vm"
-            title = "Stress Contour Plot - $\\sigma_{vM}$"
-        else:
-            raise ValueError("not supported plot_stress type!")
-        if stress_type in ["mzz_zxy", "vx_zxy", "vy_zxy", "v_zxy", "zxy"]:
-            stress_post.plot_stress_vector(stress=stress_type, title=title, **kargs)
-        else:
-            stress_post.plot_stress(stress=stress_type, title=title, **kargs)
+        """Plot stress contour based on the given stress key."""
+        stress_map = {
+            # Primary Stress
+            "n_xx": ("n_zz", "Stress Contour Plot - $\\sigma_{xx,N}$"),
+            "myy_xx": ("mxx_zz", "Stress Contour Plot - $\\sigma_{xx,Myy}$"),
+            "mzz_xx": ("myy_zz", "Stress Contour Plot - $\\sigma_{xx,Mzz}$"),
+            "m_xx": ("m_zz", "Stress Contour Plot - $\\sigma_{xx,\\Sigma M}$"),
+            "mxx_xy": ("mzz_zx", "Stress Contour Plot - $\\tau_{xy,Mxx}$"),
+            "mxx_xz": ("mzz_zy", "Stress Contour Plot - $\\tau_{xz,Mxx}$"),
+            "mxx_xyz": ("mzz_zxy", "Stress Contour Plot - $\\tau_{xyz,Mxx}$"),
+            "vy_xy": ("vx_zx", "Stress Contour Plot - $\\tau_{xy,Vy}$"),
+            "vy_xz": ("vx_zy", "Stress Contour Plot - $\\tau_{xz,Vy}$"),
+            "vy_xyz": ("vx_zxy", "Stress Contour Plot - $\\tau_{xyz,Vy}$"),
+            "vz_xy": ("vy_zx", "Stress Contour Plot - $\\tau_{xy,Vz}$"),
+            "vz_xz": ("vy_zy", "Stress Contour Plot - $\\tau_{xz,Vz}$"),
+            "vz_xyz": ("vy_zxy", "Stress Contour Plot - $\\tau_{xyz,Vz}$"),
+            "v_xy": ("v_zx", "Stress Contour Plot - $\\tau_{xy,V}$"),
+            "v_xz": ("v_zy", "Stress Contour Plot - $\\tau_{xz,V}$"),
+            "v_xyz": ("v_zxy", "Stress Contour Plot - $\\tau_{xyz,V}$"),
+            # Combined
+            "xx": ("zz", "Stress Contour Plot - $\\sigma_{xx}$"),
+            "xy": ("zx", "Stress Contour Plot - $\\tau_{xy}$"),
+            "xz": ("zy", "Stress Contour Plot - $\\tau_{xz}$"),
+            "xyz": ("zxy", "Stress Contour Plot - $\\tau_{xyz}$"),
+            "p1": ("11", "Stress Contour Plot - $\\sigma_{1}$"),
+            "p3": ("33", "Stress Contour Plot - $\\sigma_{3}$"),
+            "vm": ("vm", "Stress Contour Plot - $\\sigma_{vM}$"),
+        }
+
+        if plot_stress not in stress_map:
+            raise ValueError(f"Unsupported plot_stress type: {plot_stress}")  # noqa: TRY003
+
+        stress_type, title = stress_map[plot_stress]
+        vector_types = {"mzz_zxy", "vx_zxy", "vy_zxy", "v_zxy", "zxy"}
+
+        plot_func = stress_post.plot_stress_vector if stress_type in vector_types else stress_post.plot_stress
+        plot_func(stress=stress_type, title=title, **kargs)
 
     def get_stress(
         self,
@@ -1440,41 +1363,37 @@ class FiberSecMesh:
         plot_stress = plot_stress.lower()
         if (not self.frame_sec_props) and (not self.sec_props):
             _ = self.get_frame_props()
-        if self.section.section_props.omega is None and (
-            Vy != 0 or Vz != 0 or Mxx != 0
-        ):
+        if self.section.section_props.omega is None and (Vy != 0 or Vz != 0 or Mxx != 0):
             _ = self.get_sec_props()
-        stress_post = self.section.calculate_stress(
-            n=N, vx=Vy, vy=Vz, mxx=Myy, myy=Mzz, mzz=Mxx
-        )
-        name_map = dict(
-            xx="sig_zz",
-            xy="sig_zx",
-            xz="sig_zy",
-            xyz="sig_zxy",
-            p1="sig_11",
-            p3="sig_33",
-            vm="sig_vm",
-            n_xx="sig_zz_n",
-            myy_xx="sig_zz_mxx",
-            mzz_xx="sig_zz_myy",
-            m_xx="sig_zz_m",
-            mxx_xy="sig_zx_mzz",
-            mxx_xz="sig_zy_mzz",
-            mxx_xyz="sig_zxy_mzz",
-            vy_xy="sig_zx_vx",
-            vy_xz="sig_zy_vx",
-            vy_xyz="sig_zxy_vx",
-            vz_xy="sig_zx_vy",
-            vz_xz="sig_zy_vy",
-            vz_xyz="sig_zxy_vy",
-            v_xy="sig_zx_v",
-            v_xz="sig_zy_v",
-            v_xyz="sig_zxy_v",
-        )
+        stress_post = self.section.calculate_stress(n=N, vx=Vy, vy=Vz, mxx=Myy, myy=Mzz, mzz=Mxx)
+        name_map = {
+            "xx": "sig_zz",
+            "xy": "sig_zx",
+            "xz": "sig_zy",
+            "xyz": "sig_zxy",
+            "p1": "sig_11",
+            "p3": "sig_33",
+            "vm": "sig_vm",
+            "n_xx": "sig_zz_n",
+            "myy_xx": "sig_zz_mxx",
+            "mzz_xx": "sig_zz_myy",
+            "m_xx": "sig_zz_m",
+            "mxx_xy": "sig_zx_mzz",
+            "mxx_xz": "sig_zy_mzz",
+            "mxx_xyz": "sig_zxy_mzz",
+            "vy_xy": "sig_zx_vx",
+            "vy_xz": "sig_zy_vx",
+            "vy_xyz": "sig_zxy_vx",
+            "vz_xy": "sig_zx_vy",
+            "vz_xz": "sig_zy_vy",
+            "vz_xyz": "sig_zxy_vy",
+            "v_xy": "sig_zx_v",
+            "v_xz": "sig_zy_v",
+            "v_xyz": "sig_zxy_v",
+        }
 
         if plot_stress.lower() == "all":
-            for name in name_map.keys():
+            for name in name_map:
                 self._plot_stress(
                     stress_post=stress_post,
                     plot_stress=name,
@@ -1500,7 +1419,7 @@ class FiberSecMesh:
         stresses_temp = stress_post.get_stress()
         stresses = []
         for stress, name in zip(stresses_temp, self.geom_names):
-            temp = dict()
+            temp = {}
             temp["Region"] = name
             for name2, value in name_map.items():
                 temp["sig_" + name2] = stress[value]
@@ -1532,10 +1451,10 @@ class FiberSecMesh:
         self.centroid = np.array([0.0, 0.0])
 
     def rotate(
-            self,
-            theta: float = 0,
-            rot_point: tuple[float, float] | str = 'center',
-            remesh: bool = False,
+        self,
+        theta: float = 0,
+        rot_point: tuple[float, float] | str = "center",
+        remesh: bool = False,
     ):
         """Rotate the section clockwise.
 
@@ -1557,7 +1476,7 @@ class FiberSecMesh:
         ---------
         None
         """
-        if rot_point == 'center':
+        if rot_point == "center":
             xo, yo = self.centroid
         else:
             xo, yo = rot_point
@@ -1585,7 +1504,7 @@ class FiberSecMesh:
             txt = get_random_color_rich(self.sec_name)
             CONSOLE.print(f"{PKG_PREFIX}The section {txt} has been successfully remeshed!")
         # rebar
-        for i, data in enumerate(self.rebar_data):
+        for i, _data in enumerate(self.rebar_data):
             rebar_xy = self.rebar_data[i]["rebar_xy"]
             x_rot, y_rot = sec_rotation(rebar_xy[:, 0], rebar_xy[:, 1], theta, xo=xo, yo=yo)
             (
@@ -1593,7 +1512,7 @@ class FiberSecMesh:
                 self.rebar_data[i]["rebar_xy"][:, 1],
             ) = (x_rot, y_rot)
 
-    def to_opspy_cmds(self, secTag: int, GJ: float = None, G: float = None):
+    def to_opspy_cmds(self, secTag: int, GJ: Optional[float] = None, G: Optional[float] = None):
         """Generate openseespy fiber section command.
 
         Parameters
@@ -1615,7 +1534,7 @@ class FiberSecMesh:
         """
         if GJ is None:
             if G is None:
-                raise ValueError("GJ and G need to assign at least one!")
+                raise ValueError("GJ and G need to assign at least one!")  # noqa: TRY003
             else:
                 GJ = G * self.get_j()
 
@@ -1641,8 +1560,8 @@ class FiberSecMesh:
         self,
         output_path: str,
         secTag: int,
-        GJ: float = None,
-        G: float = None,
+        GJ: Optional[float] = None,
+        G: Optional[float] = None,
         fmt=":.6E",
     ):
         """Output the opensees fiber code to file.
@@ -1675,7 +1594,7 @@ class FiberSecMesh:
         """
         if GJ is None:
             if G is None:
-                raise ValueError("GJ and G need to assign at least one!")
+                raise ValueError("GJ and G need to assign at least one!")  # noqa: TRY003
             else:
                 GJ = G * self.get_j()
 
@@ -1685,7 +1604,7 @@ class FiberSecMesh:
         elif output_path.endswith(".py"):
             self._to_py(output_path, names, secTag, GJ, fmt=fmt)
         else:
-            raise ValueError("output_path must endwith .tcl or .py!")
+            raise ValueError("output_path must endwith .tcl or .py!")  # noqa: TRY003
         txt = get_random_color_rich(output_path)
         CONSOLE.print(f"{PKG_PREFIX} The file {txt} has been successfully written!")
 
@@ -1695,9 +1614,7 @@ class FiberSecMesh:
             output.write("# Author: Yexiang Yan  yexiang_yan@outlook.com\n\n")
             output.write(f"set secTag {sec_tag}\n")
             temp = "{"
-            output.write(
-                f"section fiberSec $secTag -GJ {gj} {temp};    # Define the fiber section\n"
-            )
+            output.write(f"section fiberSec $secTag -GJ {gj} {temp};    # Define the fiber section\n")
             txt = f"fiber {{{fmt}}} {{{fmt}}} {{{fmt}}} {{}};\n"
             for name in names:
                 centers = self.fiber_centers_map[name]
@@ -1721,9 +1638,7 @@ class FiberSecMesh:
             output.write("# This document was created from opstool.SecMesh\n")
             output.write("# Author: Yexiang Yan  yexiang_yan@outlook.com\n\n")
             output.write("import openseespy.opensees as ops\n\n\n")
-            output.write(
-                f"ops.section('Fiber', {sec_tag}, '-GJ', {gj})  # Define the fiber section\n"
-            )
+            output.write(f"ops.section('Fiber', {sec_tag}, '-GJ', {gj})  # Define the fiber section\n")
             txt = f"ops.fiber({{{fmt}}}, {{{fmt}}}, {{{fmt}}}, {{}})\n"
             for name in names:
                 centers = self.fiber_centers_map[name]
@@ -1743,11 +1658,7 @@ class FiberSecMesh:
             output.write("# end of fibersection definition\n")
 
     def view(
-            self,
-            fill: bool = True,
-            show_legend: bool = True,
-            aspect_ratio: Union[float, str] = None,
-            ax=None
+        self, fill: bool = True, show_legend: bool = True, aspect_ratio: Optional[Union[float, str]] = None, ax=None
     ):
         """Display the section mesh.
 
@@ -1770,7 +1681,7 @@ class FiberSecMesh:
         # self.section.display_mesh_info()
         # self.section.plot_mesh()
         if not self.color_map:
-            for name in self.geom_group_map.keys():
+            for name in self.geom_group_map:
                 self.color_map[name] = get_random_color()
         vertices = self.points
         if aspect_ratio is None:
@@ -1812,10 +1723,7 @@ class FiberSecMesh:
                     color=self.color_map[name],
                 )  # for legend illustration only
             else:
-                patches = [
-                    plt.Polygon(vertices[face_link, :2], closed=True)
-                    for face_link in faces
-                ]
+                patches = [plt.Polygon(vertices[face_link, :2], closed=True) for face_link in faces]
                 coll = PatchCollection(
                     patches,
                     facecolors=self.color_map[name],
@@ -1869,8 +1777,8 @@ def sec_rotation(x, y, theta, xo=0, yo=0):
     Rotate the section coordinates counterclockwise by theta
     """
     theta = theta / 180 * np.pi
-    x_new = xo + (x-xo) * np.cos(theta) + (y-yo) * np.sin(theta)
-    y_new = yo - (x-xo) * np.sin(theta) + (y-yo) * np.cos(theta)
+    x_new = xo + (x - xo) * np.cos(theta) + (y - yo) * np.sin(theta)
+    y_new = yo - (x - xo) * np.sin(theta) + (y - yo) * np.cos(theta)
     return x_new, y_new
 
 

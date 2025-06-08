@@ -1,33 +1,30 @@
+from typing import Optional
+
 import numpy as np
 import openseespy.opensees as ops
 import xarray as xr
 
 from ._response_base import ResponseBase, _expand_to_uniform_array
+
 # from ...utils import OPS_ELE_TAGS
 
-class BrickRespStepData(ResponseBase):
 
-    def __init__(
-            self,
-            ele_tags=None,
-            compute_measures: bool = True,
-            model_update: bool = False,
-            dtype: dict = None
-    ):
+class BrickRespStepData(ResponseBase):
+    def __init__(self, ele_tags=None, compute_measures: bool = True, model_update: bool = False, dtype: dict = None):
         self.resp_names = [
             "Stresses",
             "Strains",
         ]
         self.resp_steps = None
         self.resp_steps_list = []  # for model update
-        self.resp_steps_dict = dict()  # for non-update
+        self.resp_steps_dict = {}  # for non-update
         self.step_track = 0
         self.ele_tags = ele_tags
         self.times = []
 
         self.compute_measures = compute_measures
         self.model_update = model_update
-        self.dtype = dict(int=np.int32, float=np.float32)
+        self.dtype = {"int": np.int32, "float": np.float32}
         if isinstance(dtype, dict):
             self.dtype.update(dtype)
 
@@ -70,10 +67,10 @@ class BrickRespStepData(ResponseBase):
             else:
                 self.stressDOFs = [f"sigma{i + 1}" for i in stresses.shape[-1]]
         if self.GaussPoints is None:
-            self.GaussPoints = np.arange(stresses.shape[1])+1
+            self.GaussPoints = np.arange(stresses.shape[1]) + 1
 
         if self.model_update:
-            data_vars = dict()
+            data_vars = {}
             data_vars["Stresses"] = (["eleTags", "GaussPoints", "stressDOFs"], stresses)
             data_vars["Strains"] = (["eleTags", "GaussPoints", "strainDOFs"], strains)
             ds = xr.Dataset(
@@ -99,13 +96,9 @@ class BrickRespStepData(ResponseBase):
             self.resp_steps = xr.concat(self.resp_steps_list, dim="time", join="outer")
             self.resp_steps.coords["time"] = self.times
         else:
-            data_vars = dict()
-            data_vars["Stresses"] = (
-                ["time", "eleTags", "GaussPoints", "stressDOFs"], self.resp_steps_dict["Stresses"]
-            )
-            data_vars["Strains"] = (
-                ["time", "eleTags", "GaussPoints", "strainDOFs"], self.resp_steps_dict["Strains"]
-            )
+            data_vars = {}
+            data_vars["Stresses"] = (["time", "eleTags", "GaussPoints", "stressDOFs"], self.resp_steps_dict["Stresses"])
+            data_vars["Strains"] = (["time", "eleTags", "GaussPoints", "strainDOFs"], self.resp_steps_dict["Strains"])
             self.resp_steps = xr.Dataset(
                 data_vars=data_vars,
                 coords={
@@ -113,7 +106,7 @@ class BrickRespStepData(ResponseBase):
                     "eleTags": self.ele_tags,
                     "GaussPoints": self.GaussPoints,
                     "stressDOFs": self.stressDOFs,
-                    "strainDOFs": self.strainDOFs
+                    "strainDOFs": self.strainDOFs,
                 },
                 attrs=self.attrs,
             )
@@ -161,8 +154,10 @@ class BrickRespStepData(ResponseBase):
         return dt
 
     @staticmethod
-    def read_file(dt: xr.DataTree, unit_factors: dict = None):
+    def read_file(dt: xr.DataTree, unit_factors: Optional[dict] = None):
         resp_steps = dt["/SolidResponses"].to_dataset()
+        if unit_factors is not None:
+            resp_steps = BrickRespStepData._unit_transform(resp_steps, unit_factors)
         return resp_steps
 
     @staticmethod
@@ -178,7 +173,9 @@ class BrickRespStepData(ResponseBase):
         return resp_steps
 
     @staticmethod
-    def read_response(dt: xr.DataTree, resp_type: str = None, ele_tags=None, unit_factors: dict = None):
+    def read_response(
+        dt: xr.DataTree, resp_type: Optional[str] = None, ele_tags=None, unit_factors: Optional[dict] = None
+    ):
         ds = BrickRespStepData.read_file(dt, unit_factors=unit_factors)
         if resp_type is None:
             if ele_tags is None:
@@ -187,9 +184,7 @@ class BrickRespStepData(ResponseBase):
                 return ds.sel(eleTags=ele_tags)
         else:
             if resp_type not in list(ds.keys()):
-                raise ValueError(
-                    f"resp_type {resp_type} not found in {list(ds.keys())}"
-                )
+                raise ValueError(f"resp_type {resp_type} not found in {list(ds.keys())}")  # noqa: TRY003
             if ele_tags is not None:
                 return ds[resp_type].sel(eleTags=ele_tags)
             else:
@@ -197,19 +192,19 @@ class BrickRespStepData(ResponseBase):
 
 
 def _get_gauss_resp(ele_tags, dtype: dict):
-    all_stresses, all_strains = list(), list()
+    all_stresses, all_strains = [], []
     for etag in ele_tags:
         etag = int(etag)
-        integr_point_stress = list()
-        integr_point_strain = list()
+        integr_point_stress = []
+        integr_point_strain = []
         for i in range(100000000):  # Ugly but useful
             # loop for integrPoint
-            stress_ = ops.eleResponse(etag, "material", f"{i+1}", "stresses")
+            stress_ = ops.eleResponse(etag, "material", f"{i + 1}", "stresses")
             if len(stress_) == 0:
-                stress_ = ops.eleResponse(etag, "integrPoint", f"{i+1}", "stresses")
-            strain_ = ops.eleResponse(etag, "material", f"{i+1}", "strains")
+                stress_ = ops.eleResponse(etag, "integrPoint", f"{i + 1}", "stresses")
+            strain_ = ops.eleResponse(etag, "material", f"{i + 1}", "strains")
             if len(strain_) == 0:
-                strain_ = ops.eleResponse(etag, "integrPoint", f"{i+1}", "strains")
+                strain_ = ops.eleResponse(etag, "integrPoint", f"{i + 1}", "strains")
             if len(stress_) == 0 or len(strain_) == 0:
                 break
             integr_point_stress.append(stress_)
@@ -256,7 +251,7 @@ def _calculate_stresses_measures_4D(stress_array, dtype):
     # Calculate von Mises stress for each Gauss point
     sig_vm = np.sqrt(
         0.5 * ((sig11 - sig22) ** 2 + (sig22 - sig33) ** 2 + (sig33 - sig11) ** 2)
-        + 3 * (sig12 ** 2 + sig13 ** 2 + sig23 ** 2)
+        + 3 * (sig12**2 + sig13**2 + sig23**2)
     )
 
     # Calculate principal stresses
@@ -296,13 +291,11 @@ def _assemble_stress_tensor_3D(stress_array):
             tau12 = stress_array[i, j, 3]  # Shear stress in xy-plane
             tau23 = stress_array[i, j, 4]  # Shear stress in yz-plane
             tau13 = stress_array[i, j, 5]  # Shear stress in xz-plane
-            st = np.array(
-                [
-                    [sig11, tau12, tau13],
-                    [tau12, sig22, tau23],
-                    [tau13, tau23, sig33],
-                ]
-            )
+            st = np.array([
+                [sig11, tau12, tau13],
+                [tau12, sig22, tau23],
+                [tau13, tau23, sig33],
+            ])
             stress_tensor[i, j, ...] = st
     return np.nan_to_num(stress_tensor, nan=0.0)
 
@@ -338,9 +331,7 @@ def _assemble_stress_tensor_4D(stress_array):
                 stress_tensor[t, i, j, ...] = np.array([
                     [sig11, tau12, tau13],
                     [tau12, sig22, tau23],
-                    [tau13, tau23, sig33]
+                    [tau13, tau23, sig33],
                 ])
 
     return np.nan_to_num(stress_tensor, nan=0.0)
-
-

@@ -1,11 +1,6 @@
-from . import pyvista
-from . import plotly
+from . import plotly, pyvista
+
 pv = pyvista
 po = plotly
 
-__all__ = [
-    "pyvista",
-    "pv",
-    "plotly",
-    "po"
-]
+__all__ = ["plotly", "po", "pv", "pyvista"]

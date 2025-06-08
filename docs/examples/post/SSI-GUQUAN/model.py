@@ -4,6 +4,7 @@ import openseespy.opensees as ops
 
 
 def Model():
+    ops.wipe()
     ops.model("BasicBuilder", "-ndm", 2, "-ndf", 3)
     ops.node(1, 0, 0, "-mass", 15.0, 15.0, 0.0)
     ops.node(2, 0, 3.6, "-mass", 15.0, 15.0, 0.0)

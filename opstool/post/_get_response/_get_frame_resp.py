@@ -1,3 +1,5 @@
+from typing import Optional
+
 import numpy as np
 import openseespy.opensees as ops
 import xarray as xr
@@ -8,14 +10,14 @@ ELASTIC_BEAM_CLASSES = [3, 5, 5001, 145, 146, 63, 631]
 
 
 class FrameRespStepData(ResponseBase):
-
-    def __init__(self,
-                 ele_tags=None,
-                 ele_load_data=None,
-                 elastic_frame_sec_points: int = 7,
-                 model_update: bool = False,
-                 dtype: dict = None
-                 ):
+    def __init__(
+        self,
+        ele_tags=None,
+        ele_load_data=None,
+        elastic_frame_sec_points: int = 7,
+        model_update: bool = False,
+        dtype: Optional[dict] = None,
+    ):
         self.resp_names = [
             "localForces",
             "basicForces",
@@ -27,7 +29,7 @@ class FrameRespStepData(ResponseBase):
         ]
         self.resp_steps = None
         self.resp_steps_list = []  # for model update
-        self.resp_steps_dict = dict()  # for non-update
+        self.resp_steps_dict = {}  # for non-update
         self.step_track = 0
         self.ele_tags = ele_tags
         self.ele_load_data = ele_load_data
@@ -35,7 +37,7 @@ class FrameRespStepData(ResponseBase):
 
         self.elastic_frame_sec_points = elastic_frame_sec_points
         self.model_update = model_update
-        self.dtype = dict(int=np.int32, float=np.float32)
+        self.dtype = {"int": np.int32, "float": np.float32}
         if isinstance(dtype, dict):
             self.dtype.update(dtype)
 
@@ -49,12 +51,12 @@ class FrameRespStepData(ResponseBase):
             "basicDofs": "basic coord system dofs at end 1 and end 2",
             "secPoints": "section points No.",
             "secDofs": "section forces and deformations Dofs. "
-                       "Note that the section DOFs are only valid for <Elastic Section>, "
-                       "<Elastic Shear Section>, and <Fiber Section>. "
-                       "For <Aggregator Section>, you should carefully check the data, "
-                       "as it may not correspond directly to the DOFs.",
+            "Note that the section DOFs are only valid for <Elastic Section>, "
+            "<Elastic Shear Section>, and <Fiber Section>. "
+            "For <Aggregator Section>, you should carefully check the data, "
+            "as it may not correspond directly to the DOFs.",
             "Notes": "Note that the deformations are displacements and rotations in the basicDofs;"
-                     "And strains and curvatures in the secDofs",
+            "And strains and curvatures in the secDofs",
         }
 
         self.initialize()
@@ -86,11 +88,9 @@ class FrameRespStepData(ResponseBase):
                 "chordDeformation",
                 "deformations",
             ),
-            dtype = self.dtype
+            dtype=self.dtype,
         )
-        plastic_defos = _get_beam_basic_resp(
-            ele_tags, ("plasticRotation", "plasticDeformation"), dtype=self.dtype
-        )
+        plastic_defos = _get_beam_basic_resp(ele_tags, ("plasticRotation", "plasticDeformation"), dtype=self.dtype)
         sec_f, sec_d, sec_locs = _get_beam_sec_resp(
             ele_tags, ele_load_data, local_forces, self.elastic_frame_sec_points, dtype=self.dtype
         )
@@ -107,7 +107,7 @@ class FrameRespStepData(ResponseBase):
             self.secPoints = np.arange(sec_locs.shape[1]) + 1
 
         if self.model_update:
-            data_vars = dict()
+            data_vars = {}
             data_vars["localForces"] = (["eleTags", "localDofs"], local_forces)
             data_vars["basicForces"] = (["eleTags", "basicDofs"], basic_forces)
             data_vars["basicDeformations"] = (["eleTags", "basicDofs"], basic_defos)
@@ -125,7 +125,7 @@ class FrameRespStepData(ResponseBase):
                     "secDofs": self.secDofs,
                     "locs": self.sec_loc_dofs,
                 },
-                attrs=self.attrs
+                attrs=self.attrs,
             )
             self.resp_steps_list.append(ds)
         else:
@@ -141,24 +141,26 @@ class FrameRespStepData(ResponseBase):
             self.resp_steps = xr.concat(self.resp_steps_list, dim="time", join="outer")
             self.resp_steps.coords["time"] = self.times
         else:
-            data_vars = dict()
+            data_vars = {}
             data_vars["localForces"] = (["time", "eleTags", "localDofs"], self.resp_steps_dict["localForces"])
             data_vars["basicForces"] = (["time", "eleTags", "basicDofs"], self.resp_steps_dict["basicForces"])
             data_vars["basicDeformations"] = (
-                ["time", "eleTags", "basicDofs"], self.resp_steps_dict["basicDeformations"]
+                ["time", "eleTags", "basicDofs"],
+                self.resp_steps_dict["basicDeformations"],
             )
             data_vars["plasticDeformation"] = (
-                ["time", "eleTags", "basicDofs"], self.resp_steps_dict["plasticDeformation"]
+                ["time", "eleTags", "basicDofs"],
+                self.resp_steps_dict["plasticDeformation"],
             )
             data_vars["sectionForces"] = (
-                ["time", "eleTags", "secPoints", "secDofs"], self.resp_steps_dict["sectionForces"]
+                ["time", "eleTags", "secPoints", "secDofs"],
+                self.resp_steps_dict["sectionForces"],
             )
             data_vars["sectionDeformations"] = (
-                ["time", "eleTags", "secPoints", "secDofs"], self.resp_steps_dict["sectionDeformations"]
+                ["time", "eleTags", "secPoints", "secDofs"],
+                self.resp_steps_dict["sectionDeformations"],
             )
-            data_vars["sectionLocs"] = (
-                ["time", "eleTags", "secPoints", "locs"], self.resp_steps_dict["sectionLocs"]
-            )
+            data_vars["sectionLocs"] = (["time", "eleTags", "secPoints", "locs"], self.resp_steps_dict["sectionLocs"])
             self.resp_steps = xr.Dataset(
                 data_vars=data_vars,
                 coords={
@@ -170,7 +172,7 @@ class FrameRespStepData(ResponseBase):
                     "secDofs": self.secDofs,
                     "locs": self.sec_loc_dofs,
                 },
-                attrs=self.attrs
+                attrs=self.attrs,
             )
 
     def get_data(self):
@@ -185,7 +187,7 @@ class FrameRespStepData(ResponseBase):
         return dt
 
     @staticmethod
-    def read_file(dt: xr.DataTree, unit_factors: dict = None):
+    def read_file(dt: xr.DataTree, unit_factors: Optional[dict] = None):
         resp_steps = dt["/FrameResponses"].to_dataset()
         if unit_factors is not None:
             resp_steps = FrameRespStepData._unit_transform(resp_steps, unit_factors)
@@ -199,52 +201,30 @@ class FrameRespStepData(ResponseBase):
         disp_factor = unit_factors["disp"]
 
         # ---------------------------------------------------------
-        resp_steps["localForces"].loc[
-            {"localDofs": ["FX1", "FY1", "FZ1", "FX2", "FY2", "FZ2"]}
-        ] *= force_factor
-        resp_steps["localForces"].loc[
-            {"localDofs": ["MX1", "MY1", "MZ1", "MX2", "MY2", "MZ2"]}
-        ] *= moment_factor
+        resp_steps["localForces"].loc[{"localDofs": ["FX1", "FY1", "FZ1", "FX2", "FY2", "FZ2"]}] *= force_factor
+        resp_steps["localForces"].loc[{"localDofs": ["MX1", "MY1", "MZ1", "MX2", "MY2", "MZ2"]}] *= moment_factor
         # ---------------------------------------------------------
-        resp_steps["basicForces"].loc[
-            {"basicDofs": ["N"]}
-        ] *= force_factor
-        resp_steps["basicForces"].loc[
-            {"basicDofs": ["MZ1", "MZ2", "MY1", "MY2", "T"]}
-        ] *= moment_factor
-        resp_steps["basicDeformations"].loc[
-            {"basicDofs": ["N"]}
-        ] *= disp_factor
-        resp_steps["plasticDeformation"].loc[
-            {"basicDofs": ["N"]}
-        ] *= disp_factor
+        resp_steps["basicForces"].loc[{"basicDofs": ["N"]}] *= force_factor
+        resp_steps["basicForces"].loc[{"basicDofs": ["MZ1", "MZ2", "MY1", "MY2", "T"]}] *= moment_factor
+        resp_steps["basicDeformations"].loc[{"basicDofs": ["N"]}] *= disp_factor
+        resp_steps["plasticDeformation"].loc[{"basicDofs": ["N"]}] *= disp_factor
         # ---------------------------------------------------------
-        resp_steps["sectionForces"].loc[
-            {"secDofs": ["N", "VY", "VZ"]}
-        ] *= force_factor
-        resp_steps["sectionForces"].loc[
-            {"secDofs": ["MZ", "MY", "T"]}
-        ] *= moment_factor
-        resp_steps["sectionDeformations"].loc[
-            {"secDofs": ["MZ", "MY", "T"]}
-        ] *= curvature_factor
+        resp_steps["sectionForces"].loc[{"secDofs": ["N", "VY", "VZ"]}] *= force_factor
+        resp_steps["sectionForces"].loc[{"secDofs": ["MZ", "MY", "T"]}] *= moment_factor
+        resp_steps["sectionDeformations"].loc[{"secDofs": ["MZ", "MY", "T"]}] *= curvature_factor
         # --------------------------------------------------------
-        resp_steps["sectionLocs"].loc[
-            {"locs": ["X"]}
-        ] *= disp_factor
+        resp_steps["sectionLocs"].loc[{"locs": ["X"]}] *= disp_factor
         if "Y" in resp_steps["sectionLocs"].coords["locs"]:
-            resp_steps["sectionLocs"].loc[
-                {"locs": ["Y"]}
-            ] *= disp_factor
+            resp_steps["sectionLocs"].loc[{"locs": ["Y"]}] *= disp_factor
         if "Z" in resp_steps["sectionLocs"].coords["locs"]:
-            resp_steps["sectionLocs"].loc[
-                {"locs": ["Z"]}
-            ] *= disp_factor
+            resp_steps["sectionLocs"].loc[{"locs": ["Z"]}] *= disp_factor
 
         return resp_steps
 
     @staticmethod
-    def read_response(dt: xr.DataTree, resp_type: str = None, ele_tags=None, unit_factors: dict = None):
+    def read_response(
+        dt: xr.DataTree, resp_type: Optional[str] = None, ele_tags=None, unit_factors: Optional[dict] = None
+    ):
         ds = FrameRespStepData.read_file(dt, unit_factors=unit_factors)
         if resp_type is None:
             if ele_tags is None:
@@ -253,9 +233,7 @@ class FrameRespStepData(ResponseBase):
                 return ds.sel(eleTags=ele_tags)
         else:
             if resp_type not in list(ds.keys()):
-                raise ValueError(
-                    f"resp_type {resp_type} not found in {list(ds.keys())}"
-                )
+                raise ValueError(f"resp_type {resp_type} not found in {list(ds.keys())}")  # noqa: TRY003
             if ele_tags is not None:
                 return ds[resp_type].sel(eleTags=ele_tags)
             else:
@@ -317,6 +295,33 @@ def _get_beam_basic_resp(beam_tags, resp_types, dtype):
 
 
 def _get_beam_sec_resp(beam_tags, ele_load_data, local_forces, n_secs_elastic_beam, dtype):
+    pattern_tags, load_eletags = _extract_pattern_info(ele_load_data)
+    beam_secF, beam_secD, beam_locs = [], [], []
+
+    beam_lengths, start_coords, end_coords = _get_ele_length(beam_tags)
+
+    for eletag, length, local_f in zip(beam_tags, beam_lengths, local_forces):
+        eletag = int(eletag)
+        if ops.getEleClassTags(eletag)[0] in ELASTIC_BEAM_CLASSES:
+            xlocs = np.linspace(0, 1.0, n_secs_elastic_beam)
+            sec_f = _get_sec_forces(eletag, length, ele_load_data, pattern_tags, load_eletags, local_f, xlocs)
+            sec_d = np.zeros_like(sec_f)
+        else:
+            xlocs, sec_f, sec_d = _get_nonlinear_section_response(eletag, length)
+
+        beam_locs.append(np.array(xlocs))
+        beam_secF.append(np.array(sec_f))
+        beam_secD.append(np.array(sec_d))
+
+    beam_locs = _expand_to_uniform_array(beam_locs, dtype=dtype["float"])
+    beam_secF = _expand_to_uniform_array(beam_secF, dtype=dtype["float"])
+    beam_secD = _expand_to_uniform_array(beam_secD, dtype=dtype["float"])
+    beam_sec_locs = _get_ele_sec_coords(start_coords, end_coords, beam_locs)
+
+    return beam_secF, beam_secD, beam_sec_locs.astype(dtype["float"])
+
+
+def _extract_pattern_info(ele_load_data):
     pattern_tags, load_eletags = [], []
     if len(ele_load_data) > 0:
         petags = ele_load_data.coords["PatternEleTags"].values
@@ -324,62 +329,32 @@ def _get_beam_sec_resp(beam_tags, ele_load_data, local_forces, n_secs_elastic_be
             num1, num2 = item.split("-")
             pattern_tags.append(int(num1))
             load_eletags.append(int(num2))
-    pattern_tags = np.array(pattern_tags)
-    load_eletags = np.array(load_eletags)
-    # -----------------------------------------------------
-    beam_secF, beam_secD, beam_locs = [], [], []
-    beam_lengths, start_coords, end_coords = _get_ele_length(beam_tags)
-    for eletag, length, local_f in zip(beam_tags, beam_lengths, local_forces):
-        eletag = int(eletag)
-        if ops.getEleClassTags(eletag)[0] in ELASTIC_BEAM_CLASSES:  # elastic beam
-            xlocs = np.linspace(0, 1.0, n_secs_elastic_beam)
-            sec_f = _get_sec_forces(
-                eletag, length, ele_load_data, pattern_tags, load_eletags, local_f, xlocs
-            )
-            sec_d = np.zeros_like(sec_f)
-        else:
-            xlocs = []
-            sec_f, sec_d = [], []
-            locs = ops.sectionLocation(eletag)
-            locs = locs / length
-            for i, loc in enumerate(locs):
-                xlocs.append(loc)
-                forces = ops.sectionForce(eletag, i + 1)
-                if len(forces) == 0:
-                    forces = [0.0] * 6
-                elif len(forces) == 2:  # 2D fiber section
-                    forces = [forces[0], forces[1], 0.0, 0.0, 0.0, 0.0]  # N, Mz
-                elif len(forces) == 3:  # N, Mz, Vy
-                    forces = [forces[0], forces[1], forces[2], 0.0, 0.0, 0.0]
-                elif len(forces) == 4:  # N, Mz, My, T, fiber 3D
-                    forces = [forces[0], forces[1], 0.0, forces[2], 0.0, forces[3]]
-                elif len(forces) == 5:  # maybe SectionAggregator
-                    forces = [forces[0], forces[1], forces[4], forces[2], 0.0, forces[3]]
-                elif len(forces) > 6:  # maybe SectionAggregator
-                    forces = forces[:6]
-                defos = ops.sectionDeformation(eletag, i + 1)
-                if len(defos) == 0:
-                    defos = [0.0] * 6
-                elif len(defos) == 2:
-                    defos = [defos[0], defos[1], 0.0, 0.0, 0.0, 0.0]
-                elif len(defos) == 3:
-                    defos = [defos[0], defos[1], defos[2], 0.0, 0.0, 0.0]
-                elif len(defos) == 4:
-                    defos = [defos[0], defos[1], 0.0, defos[2], 0.0, defos[3]]
-                elif len(defos) == 5:
-                    defos = [defos[0], defos[1], defos[4], defos[2], 0.0, defos[3]]
-                elif len(defos) > 6:
-                    defos = defos[:6]
-                sec_f.append(forces)  # N, Mz, Vy, My, Vz, T
-                sec_d.append(defos)  # N, Mz, Vy, My, Vz, T
-        beam_locs.append(np.array(xlocs))
-        beam_secF.append(np.array(sec_f))
-        beam_secD.append(np.array(sec_d))
-    beam_locs = _expand_to_uniform_array(beam_locs, dtype=dtype["float"])
-    beam_secF = _expand_to_uniform_array(beam_secF, dtype=dtype["float"])
-    beam_secD = _expand_to_uniform_array(beam_secD, dtype=dtype["float"])
-    beam_sec_locs = _get_ele_sec_coords(start_coords, end_coords, beam_locs)
-    return beam_secF, beam_secD, beam_sec_locs.astype(dtype["float"])
+    return np.array(pattern_tags), np.array(load_eletags)
+
+
+def _get_nonlinear_section_response(eletag, length):
+    xlocs, sec_f, sec_d = [], [], []
+    for i, loc in enumerate(ops.sectionLocation(eletag) / length):
+        xlocs.append(loc)
+        forces = _format_six_component(ops.sectionForce(eletag, i + 1))
+        defos = _format_six_component(ops.sectionDeformation(eletag, i + 1))
+        sec_f.append(forces)
+        sec_d.append(defos)
+    return xlocs, sec_f, sec_d
+
+
+def _format_six_component(vec):
+    if len(vec) == 0:
+        return [0.0] * 6
+    if len(vec) == 2:
+        return [vec[0], vec[1], 0.0, 0.0, 0.0, 0.0]
+    if len(vec) == 3:
+        return [vec[0], vec[1], vec[2], 0.0, 0.0, 0.0]
+    if len(vec) == 4:
+        return [vec[0], vec[1], 0.0, vec[2], 0.0, vec[3]]
+    if len(vec) == 5:
+        return [vec[0], vec[1], vec[4], vec[2], 0.0, vec[3]]
+    return vec[:6]
 
 
 def _get_sec_forces(ele_tag, length, ele_load_data, pattern_tags, load_eletags, local_force, xlocs):
@@ -406,7 +381,7 @@ def _get_sec_forces(ele_tag, length, ele_load_data, pattern_tags, load_eletags, 
         if xb > xa and np.abs(xb - xa - 1) < 1e-2:  # Full uniform load
             wx, wy, wz = wxa * factor, wya * factor, wza * factor
             sec_f[:, 0] += -wx * sec_x
-            sec_f[:, 1] += 0.5 * wy * sec_x ** 2
+            sec_f[:, 1] += 0.5 * wy * sec_x**2
             sec_f[:, 2] += wy * sec_x
             sec_f[:, 3] += -0.5 * wz * sec_x * sec_x
             sec_f[:, 4] += -wz * sec_x

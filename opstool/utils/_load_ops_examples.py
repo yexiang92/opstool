@@ -1,8 +1,8 @@
-from .consts import CONSTANTS
 from ._util_funcs import get_random_color_rich
+from .consts import CONFIGS
 
-CONSOLE = CONSTANTS.get_console()
-PKG_PREFIX = CONSTANTS.get_pkg_prefix()
+CONSOLE = CONFIGS.get_console()
+PKG_PREFIX = CONFIGS.get_pkg_prefix()
 
 
 def run_model(filepath: str):
@@ -30,7 +30,7 @@ def run_model(filepath: str):
         exec(f.read())
 
 
-def load_ops_examples(name: str):
+def load_ops_examples(name: str):  # noqa: C901
     """Run the pre-built OpenSeesPy model examples in this package.
 
     Parameters:
@@ -118,7 +118,5 @@ def load_ops_examples(name: str):
     else:
         txt = get_random_color_rich(name, style="bold")
         CONSOLE.print(f"{PKG_PREFIX}Not supported example {txt}!")
-        CONSTANTS.CONSOLE.print(
-            f"{PKG_PREFIX}Now try treating {txt} as your own model file and run it!"
-        )
+        CONFIGS.CONSOLE.print(f"{PKG_PREFIX}Now try treating {txt} as your own model file and run it!")
         run_model(name)

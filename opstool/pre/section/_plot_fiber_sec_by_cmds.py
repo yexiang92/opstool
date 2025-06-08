@@ -1,12 +1,13 @@
 import copy
+from collections import defaultdict
+from functools import wraps
+from typing import ClassVar, Optional, Union
+
+import matplotlib.patches as mpathes
+import matplotlib.pyplot as plt
 import numpy as np
 import openseespy.opensees as ops
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpathes
 from matplotlib.collections import LineCollection
-from collections import defaultdict
-from typing import Union
-from functools import wraps
 
 from ...utils import get_cycle_color
 
@@ -17,8 +18,8 @@ plt.rcParams["ytick.direction"] = "in"
 
 
 class FiberSecPlot:
-    patches = defaultdict(lambda: [])
-    line2Ds = defaultdict(lambda: [])
+    patches: ClassVar = defaultdict(lambda: [])
+    line2Ds: ClassVar = defaultdict(lambda: [])
     sec_tag = 1
 
     @classmethod
@@ -30,18 +31,14 @@ class FiberSecPlot:
         return cls.sec_tag
 
     @classmethod
-    def add_fiber_points(
-        cls, args: Union[list, tuple], color: Union[str, tuple, list], alpha: float
-    ):
+    def add_fiber_points(cls, args: Union[list, tuple], color: Union[str, tuple, list], alpha: float):
         y, z, area = args[0], args[1], args[2]
         r = np.sqrt(area / np.pi)
         circle = mpathes.Circle((y, z), r, color=color, alpha=alpha)
         cls.patches[cls.sec_tag].append(circle)
 
     @classmethod
-    def add_rect(
-        cls, args: Union[list, tuple], color: Union[str, tuple, list], alpha: float
-    ):
+    def add_rect(cls, args: Union[list, tuple], color: Union[str, tuple, list], alpha: float):
         numy, numz = args[1], args[2]
         yi, zi, yj, zj = args[3:]
         rect = mpathes.Rectangle((yi, zi), yj - yi, zj - zi, color=color, alpha=alpha)
@@ -57,9 +54,7 @@ class FiberSecPlot:
             cls.line2Ds[cls.sec_tag].append([(yi, z_), (yj, z_)])
 
     @classmethod
-    def add_quad(
-        cls, args: Union[list, tuple], color: Union[str, tuple, list], alpha: float
-    ):
+    def add_quad(cls, args: Union[list, tuple], color: Union[str, tuple, list], alpha: float):
         numij, numjk = args[1], args[2]
         yi, zi, yj, zj, yk, zk, yl, zl = args[3:]
         yz = np.array([[yi, zi], [yj, zj], [yk, zk], [yl, zl]])
@@ -81,9 +76,7 @@ class FiberSecPlot:
             cls.line2Ds[cls.sec_tag].append([(yz1[0], yz1[1]), (yz2[0], yz2[1])])
 
     @classmethod
-    def add_circ(
-        cls, args: Union[list, tuple], color: Union[str, tuple, list], alpha: float
-    ):
+    def add_circ(cls, args: Union[list, tuple], color: Union[str, tuple, list], alpha: float):
         num_circ, num_rad = args[1], args[2]
         yc, zc = args[3], args[4]
         r_in, r_ex = args[5], args[6]
@@ -94,17 +87,13 @@ class FiberSecPlot:
         node_ex = _arc_mesh(ang_s, ang_e, r_ex, num_circ, yc, zc)
         node_in = _arc_mesh(ang_s, ang_e, r_in, num_circ, yc, zc)
 
-        wedge = mpathes.Wedge(
-            (yc, zc), r_ex, ang_s, ang_e, width=r_ex - r_in, color=color, alpha=alpha
-        )
+        wedge = mpathes.Wedge((yc, zc), r_ex, ang_s, ang_e, width=r_ex - r_in, color=color, alpha=alpha)
         cls.patches[cls.sec_tag].append(wedge)
 
         for i in range(num_circ + 1):
             yz_ex = node_ex[i]
             yz_in = node_in[i]
-            cls.line2Ds[cls.sec_tag].append(
-                [(yz_in[0], yz_in[1]), (yz_ex[0], yz_ex[1])]
-            )
+            cls.line2Ds[cls.sec_tag].append([(yz_in[0], yz_in[1]), (yz_ex[0], yz_ex[1])])
 
         for i in range(num_rad + 1):
             delta_r = (r_ex - r_in) / num_rad
@@ -121,9 +110,7 @@ class FiberSecPlot:
             cls.patches[cls.sec_tag].append(arc)
 
     @classmethod
-    def add_straight_layer(
-        cls, args: Union[list, tuple], color: Union[str, tuple, list], alpha: float
-    ):
+    def add_straight_layer(cls, args: Union[list, tuple], color: Union[str, tuple, list], alpha: float):
         num, area = args[1], args[2]
         r = np.sqrt(area / np.pi)
         yi, zi, yj, zj = args[3:]
@@ -133,9 +120,7 @@ class FiberSecPlot:
             cls.patches[cls.sec_tag].append(circle)
 
     @classmethod
-    def add_circ_layer(
-        cls, args: Union[list, tuple], color: Union[str, tuple, list], alpha: float
-    ):
+    def add_circ_layer(cls, args: Union[list, tuple], color: Union[str, tuple, list], alpha: float):
         num, area = args[1], args[2]
         yc, zc, r = args[3], args[4], args[5]
         if len(args) > 6:
@@ -144,9 +129,7 @@ class FiberSecPlot:
             ang_s, ang_e = 0.0, 360.0 - 360 / num
         node = _arc_mesh(ang_s, ang_e, r, num - 1, yc, zc)
         for i in range(num):
-            circle = mpathes.Circle(
-                node[i], np.sqrt(area / np.pi), color=color, alpha=alpha
-            )
+            circle = mpathes.Circle(node[i], np.sqrt(area / np.pi), color=color, alpha=alpha)
             cls.patches[cls.sec_tag].append(circle)
 
     @classmethod
@@ -168,9 +151,7 @@ class FiberSecPlot:
         # ----------------------------------------
         ax.set_xlabel("y", fontsize=label_size)
         ax.set_ylabel("z", fontsize=label_size)
-        ax.tick_params(
-            axis="both", which="major", width=1.2, length=5, labelsize=tick_size
-        )
+        ax.tick_params(axis="both", which="major", width=1.2, length=5, labelsize=tick_size)
         ax.tick_params(axis="both", which="minor", width=0.8, length=3)
         ax.set_title(title, fontsize=title_size)
         ax.grid(False)
@@ -184,14 +165,14 @@ class FiberSecPlot:
         plt.show()
 
 
-def fetch_fiber_plot_data(func):
+def fetch_fiber_plot_data(func):  # noqa: C901
     """Fetch data from fiber creation commands for visualization; commands include
     'fiber', 'patch', 'layer'. Note that this is a decorator.
     """
     fiber_type = func.__name__
 
     @wraps(func)
-    def wrapper(*args, color: Union[str, tuple, list] = None, opacity: float = 1.0):
+    def wrapper(*args, color: Optional[Union[str, tuple, list]] = None, opacity: float = 1.0):
         if color is None:
             color = next(COLORS)
         if fiber_type == "fiber":
@@ -214,8 +195,7 @@ def fetch_fiber_plot_data(func):
 
 
 def section(*args):
-    """``args`` see `section command <https://openseespydoc.readthedocs.io/en/latest/src/section.html#section>`_
-    """
+    """``args`` see `section command <https://openseespydoc.readthedocs.io/en/latest/src/section.html#section>`_"""
     sec_tag = args[1]
     FiberSecPlot.set_sec_tag(sec_tag)
     ops.section(*args)
@@ -223,22 +203,19 @@ def section(*args):
 
 @fetch_fiber_plot_data
 def fiber(*args):
-    """``args`` see `fiber command <https://openseespydoc.readthedocs.io/en/latest/src/fiber.html>`_
-    """
+    """``args`` see `fiber command <https://openseespydoc.readthedocs.io/en/latest/src/fiber.html>`_"""
     ops.fiber(*args)
 
 
 @fetch_fiber_plot_data
 def patch(*args):
-    """``args`` see `patch command <https://openseespydoc.readthedocs.io/en/latest/src/patch.html>`_
-    """
+    """``args`` see `patch command <https://openseespydoc.readthedocs.io/en/latest/src/patch.html>`_"""
     ops.patch(*args)
 
 
 @fetch_fiber_plot_data
 def layer(*args):
-    """``args`` see `layer command <https://openseespydoc.readthedocs.io/en/latest/src/layer.html>`_
-    """
+    """``args`` see `layer command <https://openseespydoc.readthedocs.io/en/latest/src/layer.html>`_"""
     ops.layer(*args)
 
 
@@ -292,17 +269,16 @@ def _arc_mesh(ang0, ang1, r, num_c, yc, zc):
     delta_ang = (ang1 - ang0) / num_c
     nodes = []
     for i in range(num_c + 1):
-        nodes.append(
-            (
-                r * np.cos(ang0 + i * delta_ang) + yc,
-                r * np.sin(ang0 + i * delta_ang) + zc,
-            )
-        )
+        nodes.append((
+            r * np.cos(ang0 + i * delta_ang) + yc,
+            r * np.sin(ang0 + i * delta_ang) + zc,
+        ))
     return nodes
 
 
 if __name__ == "__main__":
     import openseespy.opensees as ops
+
     import opstool as opst
 
     ops.wipe()
@@ -321,9 +297,7 @@ if __name__ == "__main__":
     sectag = 2
     opst.pre.section.section("Fiber", sectag, "-GJ", 1.0e6)
     opst.pre.section.patch("quad", 1, 20, 20, -1, -1, 1, -1, 2, 3, -2, 3, color="blue", opacity=0.25)
-    opst.pre.section.layer(
-        "straight", 1, 20, np.pi * 0.02**2, *[-0.9, -0.9], *[1.9, 2.9], color="black"
-    )
+    opst.pre.section.layer("straight", 1, 20, np.pi * 0.02**2, *[-0.9, -0.9], *[1.9, 2.9], color="black")
     opst.pre.section.fiber(0, 1, np.pi * 0.05**2, 1, color="red")
     # plot
     opst.pre.section.plot_fiber_sec_cmds(sec_tag=2)

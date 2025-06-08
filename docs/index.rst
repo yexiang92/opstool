@@ -78,27 +78,25 @@
       - Fiber Section Meshing and Property Calculation Using `sectionproperties <https://sectionproperties.readthedocs.io/en/stable/>`__
       - Easily translate Tcl-based OpenSees models into Python scripts
       - Unified Unit Conversion System
-      - Automatically compute the model mass
       - Integration with `Gmsh <https://gmsh.info/>`__ Meshing
       - Features in Development
   
    .. grid-item-card:: :octicon:`checkbox;1.5em;sd-mr-1 fill-primary` Elegant Visualization
 
-      The visualization is powered by `PyVista <https://docs.pyvista.org/>`__ and `Plotly <https://plotly.com/python/>`__, 
-      supporting most commonly used OpenSees element types. 
-      Nearly identical APIs are tailored for both engines, making it easy to visualize model geometry, modal analysis, 
-      and simulation results.
+      - Powered by `PyVista <https://docs.pyvista.org/>`__ and `Plotly <https://plotly.com/python/>`__
+      - Supporting most commonly used OpenSees element types
+      - Nearly identical APIs are tailored for both engines
 
    .. grid-item-card:: :octicon:`workflow;1.5em;sd-mr-1 fill-primary` Data Processing
 
       Analysis results are saved and processed using `xarray <https://docs.xarray.dev/en/stable/index.html#>`__, 
       enabling easy retrieval and interpretation of analysis outcomes.
-      This approach simplifies the management of large datasets and enhances postprocessing efficiency.
    
    .. grid-item-card:: :octicon:`dependabot;1.5em;sd-mr-1 fill-primary` Analysis Assistance
 
       - Smart Analysis, features include automatic step size division, algorithm switching, and other advanced functionalities
       - Moment-Curvature Analysis of Sections
+      - Linar Buckling Analysis
 
 ----------------
 

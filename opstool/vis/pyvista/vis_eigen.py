@@ -4,9 +4,9 @@ from typing import Optional, Union
 import numpy as np
 import pyvista as pv
 
-from ...post import load_eigen_data
-from ...utils import CONSTANTS
-from .plot_resp_base import PlotResponseBase, slider_widget_args
+from ...post import load_eigen_data, load_linear_buckling_data
+from ...utils import CONFIGS
+from .plot_resp_base import slider_widget_args
 from .plot_utils import (
     PLOT_ARGS,
     _get_line_cells,
@@ -15,14 +15,14 @@ from .plot_utils import (
 )
 from .vis_model import PlotModelBase
 
-PKG_NAME = CONSTANTS.get_pkg_name()
-SHAPE_MAP = CONSTANTS.get_shape_map()
+PKG_NAME = CONFIGS.get_pkg_name()
+SHAPE_MAP = CONFIGS.get_shape_map()
 
 
-class PlotEigenBase(PlotResponseBase):
+class PlotEigenBase:
     def __init__(self, model_info, modal_props, eigen_vectors):
         self.nodal_data = model_info["NodalData"]
-        self.nodal_tags = self.nodal_data.coords["tags"]
+        self.nodal_tags = self.nodal_data.coords["nodeTags"]
         self.points = self.nodal_data.to_numpy()
         self.ndims = self.nodal_data.attrs["ndims"]
         self.bounds = self.nodal_data.attrs["bounds"]
@@ -38,10 +38,32 @@ class PlotEigenBase(PlotResponseBase):
         self.unstru_tags, self.unstru_cell_types, self.unstru_cells = _get_unstru_cells(self.unstru_data)
         # --------------------------------------------------
         self.pargs = PLOT_ARGS
+        self.ModelInfo = model_info
         self.ModalProps = modal_props
-        self.EigenVectors = eigen_vectors.to_numpy()[..., :3]
+        self.EigenVectors = eigen_vectors
         self.plot_model_base = PlotModelBase(model_info, {})
         pv.set_plot_theme(PLOT_ARGS.theme)
+
+    def _get_eigen_points(self, step, alpha):
+        eigen_vec = self.EigenVectors.to_numpy()[..., :3][step]
+        value_ = np.max(np.sqrt(np.sum(eigen_vec**2, axis=1)))
+        alpha_ = self.max_bound_size * self.pargs.scale_factor / value_
+        alpha_ = alpha_ * alpha if alpha else alpha_
+        eigen_points = self.points + eigen_vec * alpha_
+        scalars = np.sqrt(np.sum(eigen_vec**2, axis=1))
+        return eigen_points, scalars, alpha_
+
+    def _get_bc_points(self, step, scale: float):
+        fixed_node_data = self.ModelInfo["FixedNodalData"]
+        if len(fixed_node_data) > 0:
+            fix_tags = fixed_node_data["nodeTags"].values
+            coords = self.nodal_data.sel({"nodeTags": fix_tags}).to_numpy()
+            eigen_vec = self.EigenVectors.sel({"nodeTags": fix_tags}).to_numpy()
+            vec = eigen_vec[..., :3][step]
+            coords = coords + vec * scale
+        else:
+            coords = []
+        return coords
 
     def _make_eigen_txt(self, step):
         fi = self.ModalProps.loc[:, "eigenFrequency"][step]
@@ -78,6 +100,11 @@ class PlotEigenBase(PlotResponseBase):
             txt += "{:>7} {:>7} {:>7} {:>7} {:>7} {:>7}\n".format("X", "Y", "Z", "RX", "RY", "RZ")
         return txt
 
+    def _make_eigen_subplots_txt(self, step):
+        period = 1 / self.ModalProps.loc[:, "eigenFrequency"][step]
+        txt = f"Mode {step + 1}  T = {period:.3E} s" if period < 0.001 else f"Mode {step + 1}  T = {period:.3f} s"
+        return txt
+
     def _create_mesh(
         self,
         plotter,
@@ -91,6 +118,7 @@ class PlotEigenBase(PlotResponseBase):
         show_bc: bool = True,
         bc_scale: float = 1.0,
         show_mp_constraint: bool = True,
+        cpos="iso",
     ):
         if idxi is not None and idxj is not None:
             plotter.subplot(idxi, idxj)
@@ -99,12 +127,7 @@ class PlotEigenBase(PlotResponseBase):
             plotter.clear_actors()
             subplots = False
         step = round(idx) - 1
-        eigen_vec = self.EigenVectors[step]
-        value_ = np.max(np.sqrt(np.sum(eigen_vec**2, axis=1)))
-        alpha_ = self.max_bound_size * self.pargs.scale_factor / value_
-        alpha_ = alpha_ * alpha if alpha else alpha_
-        eigen_points = self.points + eigen_vec * alpha_
-        scalars = np.sqrt(np.sum(eigen_vec**2, axis=1))
+        eigen_points, scalars, alpha_ = self._get_eigen_points(step, alpha)
         point_plot, line_plot, solid_plot = _plot_all_mesh_cmap(
             plotter,
             eigen_points,
@@ -136,34 +159,26 @@ class PlotEigenBase(PlotResponseBase):
                 font="courier",
             )
         else:
-            period = 1 / self.ModalProps.loc[:, "eigenFrequency"][step]
-            txt = f"Mode {step + 1}  T = {period:.3E} s" if period < 0.001 else f"Mode {step + 1}  T = {period:.3f} s"
+            txt = self._make_eigen_subplots_txt(step)
             plotter.add_text(
                 txt,
                 position="upper_left",
-                font_size=self.pargs.title_font_size,
+                font_size=self.pargs.font_size,
                 font="courier",
             )
             # txt = self._make_eigen_txt(step)
             # plotter.add_text(txt, position="lower_right", font_size=label_size, font="courier")
+        bc_plot = None
         if show_bc:
-            self.plot_model_base.plot_bc(plotter, bc_scale)
+            bc_points = self._get_bc_points(step, scale=alpha_)
+            bc_plot = self.plot_model_base.plot_bc(plotter, bc_scale, points_new=bc_points)
+        mp_plot = None
         if show_mp_constraint:
-            mp_plot = self.plot_model_base.plot_mp_constraint(
-                plotter,
-                points_new=eigen_points,
-            )
-        else:
-            mp_plot = None
+            mp_plot = self.plot_model_base.plot_mp_constraint(plotter, points_new=eigen_points)
         if show_outline:
-            plotter.show_bounds(
-                grid=False,
-                location="outer",
-                bounds=self.bounds,
-                show_zaxis=self.show_zaxis,
-            )
-        plotter.add_axes(interactive=True)
-        return point_plot, line_plot, solid_plot, alpha_, mp_plot
+            self._plot_outline(plotter)
+        self._update_plotter(plotter, cpos)
+        return point_plot, line_plot, solid_plot, alpha_, bc_plot, mp_plot
 
     def subplots(self, plotter, modei, modej, link_views=True, **kargs):
         if modej - modei + 1 > 64:
@@ -188,37 +203,60 @@ class PlotEigenBase(PlotResponseBase):
         n_cycle: int = 5,
         framerate: int = 3,
         savefig: str = "EigenAnimation.gif",
+        alpha: float = 1.0,
         **kargs,
     ):
-        point_plot, line_plot, solid_plot, alpha_, mp_plot = self._create_mesh(plotter, mode_tag, **kargs)
         # animation
         if savefig.endswith(".gif"):
             plotter.open_gif(savefig, fps=framerate, palettesize=64)
         else:
             plotter.open_movie(savefig, framerate=framerate, quality=7)
-        eigen_vec = self.EigenVectors[mode_tag - 1]
-        eigen_points = self.points + eigen_vec * alpha_
-        anti_eigen_points = self.points - eigen_vec * alpha_
-        plt_points = [anti_eigen_points, self.points, eigen_points]
-        index = [2, 0] * n_cycle
-        plotter.write_frame()  # write initial data
-        for idx in index:
-            points = plt_points[idx]
-            xyz = (self.points - points) / alpha_
-            xyz_eigen = np.sqrt(np.sum(xyz**2, axis=1))
-            if point_plot:
-                point_plot["scalars"] = xyz_eigen
-                point_plot.points = points
-            if line_plot:
-                line_plot["scalars"] = xyz_eigen
-                line_plot.points = points
-            if solid_plot:
-                solid_plot["scalars"] = xyz_eigen
-                solid_plot.points = points
-            if mp_plot:
-                mp_plot.points = points
-            plotter.update_scalar_bar_range(clim=[np.min(xyz_eigen), np.max(xyz_eigen)], name=None)
+        alphas = [0.0] + [alpha, -alpha] * n_cycle
+        for alpha in alphas:
+            self._create_mesh(plotter, mode_tag, alpha=alpha, **kargs)
             plotter.write_frame()
+
+    def _update_plotter(self, plotter: pv.Plotter, cpos):
+        if isinstance(cpos, str):
+            cpos = cpos.lower()
+            viewer = {
+                "xy": plotter.view_xy,
+                "yx": plotter.view_yx,
+                "xz": plotter.view_xz,
+                "zx": plotter.view_zx,
+                "yz": plotter.view_yz,
+                "zy": plotter.view_zy,
+                "iso": plotter.view_isometric,
+            }
+            if not self.show_zaxis and cpos not in ["xy", "yx"]:
+                cpos = "xy"
+                plotter.enable_2d_style()
+                plotter.enable_parallel_projection()
+            viewer[cpos]()
+
+            if cpos == "iso":  # rotate camera
+                plotter.camera.Azimuth(180)
+        else:
+            plotter.camera_position = cpos
+            if not self.show_zaxis:
+                plotter.view_xy()
+                plotter.enable_2d_style()
+                plotter.enable_parallel_projection()
+
+        plotter.add_axes()
+        return plotter
+
+
+class PlotBucklingBase(PlotEigenBase):
+    def __init__(self, model_info, eigen_values, eigen_vectors):
+        super().__init__(model_info, eigen_values, eigen_vectors)
+
+    def _make_eigen_txt(self, step):
+        fi = self.ModalProps.isel(modeTags=step)
+        return f"Mode {step + 1}\nk={float(fi):.3f}"
+
+    def _make_eigen_subplots_txt(self, step):
+        return self._make_eigen_txt(step)
 
 
 def plot_eigen(
@@ -235,6 +273,7 @@ def plot_eigen(
     bc_scale: float = 1.0,
     show_mp_constraint: bool = True,
     solver: str = "-genBandArpack",
+    mode: str = "eigen",
 ) -> pv.Plotter:
     """Modal visualization.
 
@@ -271,6 +310,11 @@ def plot_eigen(
         Whether to show multipoint (MP) constraint.
     solver : str, optional,
         OpenSees' eigenvalue analysis solver, by default "-genBandArpack".
+    mode: str, default: eigen
+        The type of modal analysis, can be "eigen" or "buckling".
+        If "eigen", it will plot the eigenvalues and eigenvectors.
+        If "buckling", it will plot the buckling factors and modes.
+        Added in v0.1.15.
 
     Returns
     -------
@@ -287,13 +331,19 @@ def plot_eigen(
     """
     if isinstance(mode_tags, int):
         mode_tags = [1, mode_tags]
-    resave = odb_tag is None
-    odb_tag = "Auto" if odb_tag is None else odb_tag
-    modalProps, eigenvectors, MODEL_INFO = load_eigen_data(
-        odb_tag=odb_tag, mode_tag=mode_tags[-1], solver=solver, resave=resave
-    )
     modei, modej = int(mode_tags[0]), int(mode_tags[1])
-    plotbase = PlotEigenBase(MODEL_INFO, modalProps, eigenvectors)
+    if mode.lower() == "eigen":
+        resave = odb_tag is None
+        odb_tag = "Auto" if odb_tag is None else odb_tag
+        modalProps, eigenvectors, MODEL_INFO = load_eigen_data(
+            odb_tag=odb_tag, mode_tag=mode_tags[-1], solver=solver, resave=resave
+        )
+        plotbase = PlotEigenBase(MODEL_INFO, modalProps, eigenvectors)
+    elif mode.lower() == "buckling":
+        modalProps, eigenvectors, MODEL_INFO = load_linear_buckling_data(odb_tag=odb_tag)
+        plotbase = PlotBucklingBase(MODEL_INFO, modalProps, eigenvectors)
+    else:
+        raise ValueError(f"Unsupported mode: {mode}. Use 'eigen' or 'buckling'.")  # noqa: TRY003
     if subplots:
         shape = SHAPE_MAP[modej - modei + 1]
         plotter = pv.Plotter(
@@ -336,7 +386,7 @@ def plot_eigen(
         )
     if PLOT_ARGS.anti_aliasing:
         plotter.enable_anti_aliasing(PLOT_ARGS.anti_aliasing)
-    return plotbase.update(plotter, cpos)
+    return plotbase._update_plotter(plotter, cpos)
 
 
 def plot_eigen_animation(
@@ -348,6 +398,8 @@ def plot_eigen_animation(
     off_screen: bool = True,
     cpos: str = "iso",
     solver: str = "-genBandArpack",
+    alpha: float = 1.0,
+    mode: str = "eigen",
     **kargs,
 ) -> pv.Plotter:
     """Modal animation visualization.
@@ -373,6 +425,13 @@ def plot_eigen_animation(
         If 3d, defaults to "iso". If 2d, defaults to "xy".
     solver : str, optional,
         OpenSees' eigenvalue analysis solver, by default "-genBandArpack".
+    alpha: float, default: 1.0
+        Zoom the presentation size of the mode shapes.
+    mode: str, default: eigen
+        The type of modal analysis, can be "eigen" or "buckling".
+        If "eigen", it will plot the eigenvalues and eigenvectors.
+        If "buckling", it will plot the buckling factors and modes.
+        Added in v0.1.15.
     kargs: dict, optional parameters,
         see ``plot_eigen``.
 
@@ -389,11 +448,17 @@ def plot_eigen_animation(
     `Plotter.export_html <https://docs.pyvista.org/api/plotting/_autosummary/pyvista.plotter.export_html#pyvista.Plotter.export_html>`_.
     to export this plotter as an interactive scene to an HTML file.
     """
-    resave = odb_tag is None
-    modalProps, eigenvectors, MODEL_INFO = load_eigen_data(
-        odb_tag=odb_tag, mode_tag=mode_tag, solver=solver, resave=resave
-    )
-    plotbase = PlotEigenBase(MODEL_INFO, modalProps, eigenvectors)
+    if mode.lower() == "eigen":
+        resave = odb_tag is None
+        modalProps, eigenvectors, MODEL_INFO = load_eigen_data(
+            odb_tag=odb_tag, mode_tag=mode_tag, solver=solver, resave=resave
+        )
+        plotbase = PlotEigenBase(MODEL_INFO, modalProps, eigenvectors)
+    elif mode.lower() == "buckling":
+        modalProps, eigenvectors, MODEL_INFO = load_linear_buckling_data(odb_tag=odb_tag)
+        plotbase = PlotBucklingBase(MODEL_INFO, modalProps, eigenvectors)
+    else:
+        raise ValueError(f"Unsupported mode: {mode}. Use 'eigen' or 'buckling'.")  # noqa: TRY003
     plotter = pv.Plotter(
         notebook=PLOT_ARGS.notebook,
         line_smoothing=PLOT_ARGS.line_smoothing,
@@ -406,9 +471,10 @@ def plot_eigen_animation(
         n_cycle=n_cycle,
         framerate=framerate,
         savefig=savefig,
+        alpha=alpha,
         **kargs,
     )
     if PLOT_ARGS.anti_aliasing:
         plotter.enable_anti_aliasing(PLOT_ARGS.anti_aliasing)
     print(f"Animation has been saved to {savefig}!")
-    return plotbase.update(plotter, cpos)
+    return plotbase._update_plotter(plotter, cpos)

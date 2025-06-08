@@ -1,4 +1,5 @@
 import re
+
 import numpy as np
 import pyvista as pv
 
@@ -76,12 +77,8 @@ def var_line_string(
     for x in cum_length:
         points_ = []
         for i in range(len(yi)):
-            y = _get_coord(
-                0, yi[i], length, yj[i], x, degree=y_degree, sym_plane=y_sym_plane
-            )
-            z = _get_coord(
-                0, zi[i], length, zj[i], x, degree=z_degree, sym_plane=z_sym_plane
-            )
+            y = _get_coord(0, yi[i], length, yj[i], x, degree=y_degree, sym_plane=y_sym_plane)
+            z = _get_coord(0, zi[i], length, zj[i], x, degree=z_degree, sym_plane=z_sym_plane)
             points_.append((y, z))
         cum_points.append(points_)
     return cum_points
@@ -125,14 +122,10 @@ def vis_var_sec(
     plotter = pv.Plotter(notebook=on_notebook)
     cum_coord = np.array(cum_coord, dtype=np.float32)
     point_plot1 = pv.PolyData(cum_coord)
-    plotter.add_mesh(
-        point_plot1, color="black", point_size=5, render_points_as_spheres=True
-    )
+    plotter.add_mesh(point_plot1, color="black", point_size=5, render_points_as_spheres=True)
     path = np.array(path, dtype=np.float32)
     point_plot2 = pv.PolyData(path)
-    plotter.add_mesh(
-        point_plot2, color="#8f1402", point_size=10, render_points_as_spheres=True
-    )
+    plotter.add_mesh(point_plot2, color="#8f1402", point_size=10, render_points_as_spheres=True)
     line_cells = []
     for i in range(len(path) - 1):
         line_cells.extend([2, i, i + 1])
@@ -152,23 +145,22 @@ def vis_var_sec(
         if not sec_mesh.is_centring:
             sec_mesh.centring()
         points = sec_mesh.points
-        points = points[:, 0].reshape((-1, 1)) @ np.reshape(vecy, (1, 3)) + points[
-            :, 1
-        ].reshape((-1, 1)) @ np.reshape(vecz, (1, 3))
+        points = points[:, 0].reshape((-1, 1)) @ np.reshape(vecy, (1, 3)) + points[:, 1].reshape((-1, 1)) @ np.reshape(
+            vecz, (1, 3)
+        )
         points += center0
         for name, faces in sec_mesh.cells_map.items():
             faces = np.insert(faces, 0, values=3, axis=1)
             face_plot = _generate_mesh(points, faces, kind="face")
-            plotter.add_mesh(
-                face_plot, color=sec_mesh.color_map[name], show_edges=True, opacity=1
-            )
+            plotter.add_mesh(face_plot, color=sec_mesh.color_map[name], show_edges=True, opacity=1)
         for rdata in sec_mesh.rebar_data:
             color = rdata["color"]
             r = rdata["dia"] / 2
             rebar_xy = np.array(rdata["rebar_xy"])
-            rebar_xy = rebar_xy[:, 0].reshape((-1, 1)) @ np.reshape(
-                vecy, (1, 3)
-            ) + rebar_xy[:, 1].reshape((-1, 1)) @ np.reshape(vecz, (1, 3))
+            rebar_xy = rebar_xy[:, 0].reshape((-1, 1)) @ np.reshape(vecy, (1, 3)) + rebar_xy[:, 1].reshape((
+                -1,
+                1,
+            )) @ np.reshape(vecz, (1, 3))
             rebar_xy += center0
             spheres = []
             for coord in rebar_xy:
@@ -189,10 +181,7 @@ def vis_var_sec(
 
 def _get_path_len(path, n_sec, loc=None):
     n = len(path)
-    if loc is not None:
-        xs = loc
-    else:
-        xs = np.linspace(0, 1, n_sec)
+    xs = loc if loc is not None else np.linspace(0, 1, n_sec)
     length = 0
     cum_length = []
     cum_coord = []
@@ -220,15 +209,12 @@ def _get_path_local_axes(path, n_sec, loc):
         local_x = (p2 - p1) / np.linalg.norm(p2 - p1)
         global_z = np.array([0, 0, 1])
         cos2 = local_x @ global_z / (np.linalg.norm(local_x) * np.linalg.norm(global_z))
-        if np.abs(1 - cos2) < 1e-12:
-            vecxz = [-1, 0, 0]
-        else:
-            vecxz = [0, 0, 1]
+        vecxz = [-1, 0, 0] if np.abs(1 - cos2) < 1e-12 else [0, 0, 1]
         local_y = np.cross(vecxz, local_x)
         local_z = np.cross(local_x, local_y)
         local_y /= np.linalg.norm(local_y)
         local_z /= np.linalg.norm(local_z)
-        for j in range(n_sec):
+        for _j in range(n_sec):
             local_axes.append([local_x, local_y, local_z])
     return local_axes
 
@@ -249,9 +235,9 @@ def _get_coord(x1, y1, x2, y2, x, degree=1, sym_plane="j-0"):
             c = y1 - a * x1**2 - b * x1
             y = a * x**2 + b * x + c
         else:
-            raise ValueError(f"Error arg sym_plane={sym_plane}!")
+            raise ValueError(f"Error arg sym_plane={sym_plane}!")  # noqa: TRY003
     else:
-        raise ValueError("Currently only support degree=1 or 2!")
+        raise ValueError("Currently only support degree=1 or 2!")  # noqa: TRY003
     return y
 
 
@@ -268,11 +254,11 @@ def _generate_mesh(points, cells, kind="line"):
         pltr.points = points
         pltr.faces = cells
     else:
-        raise ValueError(f"not supported {kind}!")
+        raise ValueError(f"not supported {kind}!")  # noqa: TRY003
     return pltr
 
 
-def get_lobatto_loc(n_sec: int):
+def get_lobatto_loc(n_sec: int) -> np.ndarray:
     """Get the location of the Lobatto integration sections.
 
     Paramaters
@@ -353,84 +339,21 @@ def get_lobatto_loc(n_sec: int):
     return loc
 
 
-def get_legendre_loc(n_sec: int):
-    """Get the location of the Legendre integration sections.
+def get_legendre_loc(n_sec: int) -> np.ndarray:
+    """
+    Get the location of Legendre integration points mapped to [0, 1].
 
-    Paramaters
-    -----------
-    n_sec: int,
-        The number of integration sections.
+    Parameters
+    ----------
+    n_sec : int
+        Number of integration sections (1 ≤ n ≤ 100).
 
     Returns
-    --------
-    1d Numpy Array:
-        The position of each beam element in the range 0-1.
+    -------
+    np.ndarray
+        Location of integration points in [0, 1].
     """
-    xi = np.zeros(n_sec)
-    if n_sec == 1:
-        xi[0] = 0.0
-    elif n_sec == 2:
-        xi[0] = -0.577350269189626
-        xi[1] = 0.577350269189626
-    elif n_sec == 3:
-        xi[0] = -0.774596669241483
-        xi[1] = 0.0
-        xi[2] = 0.774596669241483
-    elif n_sec == 4:
-        xi[0] = -0.861136311594053
-        xi[1] = -0.339981043584856
-        xi[2] = 0.339981043584856
-        xi[3] = 0.861136311594053
-    elif n_sec == 5:
-        xi[0] = -0.906179845938664
-        xi[1] = -0.538469310105683
-        xi[2] = 0.0
-        xi[3] = 0.538469310105683
-        xi[4] = 0.906179845938664
-    elif n_sec == 6:
-        xi[0] = -0.932469514203152
-        xi[1] = -0.661209386466265
-        xi[2] = -0.238619186083197
-        xi[3] = 0.238619186083197
-        xi[4] = 0.661209386466265
-        xi[5] = 0.932469514203152
-    elif n_sec == 7:
-        xi[0] = -0.949107912342759
-        xi[1] = -0.741531185599394
-        xi[2] = -0.405845151377397
-        xi[3] = 0.0
-        xi[4] = 0.405845151377397
-        xi[5] = 0.741531185599394
-        xi[6] = 0.949107912342759
-    elif n_sec == 8:
-        xi[0] = -0.960289856497536
-        xi[1] = -0.796666477413627
-        xi[2] = -0.525532409916329
-        xi[3] = -0.183434642495650
-        xi[4] = 0.183434642495650
-        xi[5] = 0.525532409916329
-        xi[6] = 0.796666477413627
-        xi[7] = 0.960289856497536
-    elif n_sec == 9:
-        xi[0] = -0.968160239507626
-        xi[1] = -0.836031107326636
-        xi[2] = -0.613371432700590
-        xi[3] = -0.324253423403809
-        xi[4] = 0.0
-        xi[5] = 0.324253423403809
-        xi[6] = 0.613371432700590
-        xi[7] = 0.836031107326636
-        xi[8] = 0.968160239507626
-    elif n_sec == 10:
-        xi[0] = -0.973906528517172
-        xi[1] = -0.865063366688985
-        xi[2] = -0.679409568299024
-        xi[3] = -0.433395394129247
-        xi[4] = -0.148874338981631
-        xi[5] = 0.148874338981631
-        xi[6] = 0.433395394129247
-        xi[7] = 0.679409568299024
-        xi[8] = 0.865063366688985
-        xi[9] = 0.973906528517172
-    loc = 0.5 * (xi + 1.0)
-    return loc
+    if n_sec < 1:
+        raise ValueError("n_sec must be ≥ 1.")  # noqa: TRY003
+    xi, _ = np.polynomial.legendre.leggauss(n_sec)
+    return 0.5 * (xi + 1.0)

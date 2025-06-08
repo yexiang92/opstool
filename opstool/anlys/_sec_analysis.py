@@ -1,9 +1,10 @@
-import matplotlib.pyplot as plt
-import numpy as np
-import xarray as xr
-import openseespy.opensees as ops
 from typing import Union
 from warnings import warn
+
+import matplotlib.pyplot as plt
+import numpy as np
+import openseespy.opensees as ops
+import xarray as xr
 from scipy.integrate import trapezoid
 
 from ._smart_analyze import SmartAnalyze
@@ -289,16 +290,14 @@ class MomentCurvature:
         M = self.M
         fiber_data = self.FiberData
         if peak_drop:
-            if peak_drop is True:
-                ratio_ = 0.8
-            else:
-                ratio_ = 1 - peak_drop
+            ratio_ = 0.8 if peak_drop is True else 1 - peak_drop
             idx = np.argmax(M)
             au = np.argwhere(M[idx:] <= np.max(M) * ratio_)
             if au.size == 0:
                 warn(
                     f"Peak strength does not drop {1 - ratio_}, please increase target ductility ratio! "
-                    f"The last value is used as the limit state."
+                    f"The last value is used as the limit state.",
+                    stacklevel=2,
                 )
                 bu = -1
             else:
@@ -307,9 +306,7 @@ class MomentCurvature:
             mat_tags = np.atleast_1d(matTag)
             thresholds = np.atleast_1d(threshold)
             if len(mat_tags) != len(thresholds):
-                raise ValueError(
-                    "The length of matTag and threshold should be the same!"
-                )
+                raise ValueError("The length of matTag and threshold should be the same!")  # noqa: TRY003
             bus = []
             for matTag, threshold in zip(mat_tags, thresholds):
                 matTag = int(matTag)
@@ -324,7 +321,8 @@ class MomentCurvature:
                 if len(au) == 0:
                     warn(
                         "The ultimate strain is not reached, please increase target ductility ratio! "
-                        f"The last value is used as the limit state."
+                        "The last value is used as the limit state.",
+                        stacklevel=2,
                     )
                     bu = len(phi) - 1
                 else:
@@ -335,9 +333,7 @@ class MomentCurvature:
         M_u = M[bu]
         return Phi_u, M_u
 
-    def bilinearize(
-        self, phiy: float, My: float, phiu: float, plot: bool = False, ax=None
-    ):
+    def bilinearize(self, phiy: float, My: float, phiu: float, plot: bool = False, ax=None):
         """Bilinear Approximation of Moment-Curvature Relation.
 
         Parameters
@@ -461,94 +457,100 @@ def _analyze(
     smart_analyze=True,
     cycle=False,
     cycle_path=None,
-    debug: bool = False,
+    debug=False,
 ):
-    _create_model(sec_tag=sec_tag)
+    _create_model(sec_tag)
     if P != 0:
         _create_axial_resp(P)
+
+    _setup_load(axis)
+    if cycle and cycle_path is not None:
+        max_phi = np.max(np.abs(cycle_path))
+
+    protocol = _build_protocol(max_phi, incr_phi, cycle, cycle_path)
+    dof = _get_dof(axis)
+    results = _run_protocol_segments(protocol, dof, stop_ratio, smart_analyze, cycle_path, max_phi, debug)
+    return results
+
+
+def _setup_load(axis):
+    dof = _get_dof(axis)
+    load = [0] * 6
+    load[dof - 1] = 1
     ops.timeSeries("Linear", 2)
     ops.pattern("Plain", 2, 2)
-    if axis.lower() == "y":
-        dof = 5
-        ops.load(2, 0, 0, 0, 0, 1, 0)
-    elif axis.lower() == "z":
-        dof = 6
-        ops.load(2, 0, 0, 0, 0, 0, 1)
+    ops.load(2, *load)
+
+
+def _get_dof(axis):
+    axis_map = {"y": 5, "z": 6}
+    try:
+        return axis_map[axis.lower()]
+    except KeyError:
+        print("Only supported axis = y or z!")
+
+
+def _build_protocol(max_phi, incr_phi, cycle, cycle_path):
+    if cycle and cycle_path is not None:
+        protocol = []
+        for i in range(len(cycle_path) - 1):
+            diff = cycle_path[i + 1] - cycle_path[i]
+            steps = max(1, int(abs(diff / incr_phi)))
+            protocol += [diff / steps] * steps
+        return protocol
     else:
-        raise ValueError("Only supported axis = y or z!")
-    if cycle:
-        max_phi = np.max(np.abs(cycle_path))
-    M = [0]
-    PHI = [0]
-    FIBER_RESPONSES = [0]
+        steps = max(1, int(abs(max_phi / incr_phi)))
+        return [max_phi / steps] * steps
+
+
+def _run_protocol_segments(protocol, dof, stop_ratio, smart_analyze, cycle_path, max_phi, debug):
+    M, PHI, RESP = [0.0], [0.0], [0.0]
+
+    def record():
+        phi = ops.nodeDisp(2, dof)
+        moment = ops.getLoadFactor(2)
+        PHI.append(phi)
+        M.append(moment)
+        RESP.append(_get_fiber_sec_data(ele_tag=1))
+        return phi, moment
+
+    def should_stop(phi, moment):
+        flip = (moment - M[-1]) * (phi - PHI[-1]) < 0
+        decay = abs(moment) < max(abs(m) for m in M) * (stop_ratio - 0.02)
+        return (flip and decay) or abs(phi) >= max_phi
+
     if smart_analyze:
-        if cycle:
-            protocol = cycle_path
-        else:
-            protocol = [max_phi]
-        userControl = {
-            "analysis": "Static",
-            "testType": "NormDispIncr",
-            "testTol": 1.0e-10,
-            "tryAlterAlgoTypes": True,
-            "algoTypes": [10, 40],
-            "relaxation": 0.5,
-            "minStep": 1.0e-12,
-            "printPer": 10000000000,
-            "debugMode": debug,
-        }
-        analysis = SmartAnalyze(analysis_type="Static", **userControl)
-        segs = analysis.static_split(protocol, maxStep=incr_phi)
-        for seg in segs:
+        analysis = SmartAnalyze(
+            analysis_type="Static",
+            testType="NormDispIncr",
+            testTol=1e-10,
+            tryAlterAlgoTypes=True,
+            algoTypes=[10, 40],
+            relaxation=0.5,
+            minStep=1e-12,
+            printPer=1e10,
+            debugMode=debug,
+        )
+        for seg in analysis.static_split(cycle_path if cycle_path else [max_phi], maxStep=protocol[0]):
             ok = analysis.StaticAnalyze(2, dof, seg)
-            curr_M = ops.getLoadFactor(2)
-            curr_Phi = ops.nodeDisp(2, dof)
-            cond1 = False
-            if (curr_M - M[-1]) * (curr_Phi - PHI[-1]) < 0:
-                if np.abs(curr_M) < np.max(np.abs(M)) * (stop_ratio - 0.02):
-                    cond1 = True
-            cond2 = np.abs(curr_Phi) >= max_phi
-            PHI.append(curr_Phi)
-            M.append(curr_M)
-            FIBER_RESPONSES.append(_get_fiber_sec_data(ele_tag=1))
-            if cond1 or cond2:
-                analysis.close()
+            phi, moment = record()
+            if should_stop(phi, moment):
                 break
             if ok < 0:
-                raise RuntimeError("Analysis failed!")
+                raise RuntimeError("Analysis failed")  # noqa: TRY003
         analysis.close()
     else:
-        if cycle:
-            protocol = []
-            for i in range(1, len(cycle_path)-1):
-                diff = cycle_path[i + 1] - cycle_path[i]
-                n = int(abs(diff / incr_phi))
-                path = [diff / n for _ in range(n)]
-                protocol.extend(path)
-        else:
-            n = int(abs(max_phi / incr_phi))
-            step = max_phi / n
-            protocol = [step for _ in range(n)]
-
-        for step_size in protocol:
-            ops.integrator("DisplacementControl", 2, dof, step_size)
+        for step in protocol:
+            ops.integrator("DisplacementControl", 2, dof, step)
             ok = ops.analyze(1)
-            curr_M = ops.getLoadFactor(2)
-            curr_Phi = ops.nodeDisp(2, dof)
-            cond1 = False
-            if (curr_M - M[-1]) * (curr_Phi - PHI[-1]) < 0:
-                if np.abs(curr_M) < np.max(np.abs(M)) * (stop_ratio - 0.02):
-                    cond1 = True
-            cond2 = np.abs(curr_Phi) > max_phi
-            PHI.append(curr_Phi)
-            M.append(curr_M)
-            FIBER_RESPONSES.append(_get_fiber_sec_data(ele_tag=1))
-            if cond1 or cond2:
+            phi, moment = record()
+            if should_stop(phi, moment):
                 break
             if ok < 0:
-                raise RuntimeError("Analysis failed!")
-    FIBER_RESPONSES[0] = FIBER_RESPONSES[1] * 0
-    return np.array(PHI), np.array(M), np.array(FIBER_RESPONSES)
+                raise RuntimeError("Analysis failed")  # noqa: TRY003
+
+    RESP[0] = RESP[1] * 0
+    return np.array(PHI), np.array(M), np.array(RESP)
 
 
 def _get_fiber_sec_data(ele_tag: int):

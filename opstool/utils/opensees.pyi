@@ -6,7 +6,6 @@ Mail: yexiang_yan@outlook.com
 
 from typing import Union
 
-
 def model(*args) -> None:
     """``model('basic', '-ndm', ndm, '-ndf', ndf)``
 
@@ -17,7 +16,6 @@ def model(*args) -> None:
     * ndf (int)  :   number of dofs (optional)
     """
     pass
-
 
 def node(*args) -> None:
     """
@@ -35,7 +33,6 @@ def node(*args) -> None:
     """
     pass
 
-
 def mass(*args) -> None:
     """``mass(nodeTag, *massValues)``
 
@@ -46,10 +43,9 @@ def mass(*args) -> None:
     """
     pass
 
-
 def region(*args) -> None:
     """``region(regTag, '-ele', *eles, '-eleOnly', *eles, '-eleRange', startEle, endEle, '-eleOnlyRange',
-    startEle, endEle, '-node', *nodes, '-nodeOnly', *nodes, '-nodeRange', startNode, endNode, '-nodeOnlyRange', 
+    startEle, endEle, '-node', *nodes, '-nodeOnly', *nodes, '-nodeRange', startNode, endNode, '-nodeOnlyRange',
     startNode, endNode, '-rayleigh', alphaM, betaK, betaKinit, betaKcomm)``
 
     See https://openseespydoc.readthedocs.io/en/latest/src/region.html
@@ -80,7 +76,6 @@ def region(*args) -> None:
     """
     pass
 
-
 def rayleigh(*args) -> None:
     """``rayleigh(alphaM, betaK, betaKinit, betaKcomm)``
 
@@ -99,14 +94,12 @@ def rayleigh(*args) -> None:
     """
     pass
 
-
 def block2D(*args) -> None:
     """``block2D(numX, numY, startNode, startEle, eleType, *eleArgs, *crds)``
 
     Create mesh of quadrilateral elements, see https://openseespydoc.readthedocs.io/en/latest/src/block2D.html
     """
     pass
-
 
 def block3D(*args) -> None:
     """``block3D(numX, numY, numZ, startNode, startEle, eleType, *eleArgs, *crds)``
@@ -115,7 +108,6 @@ def block3D(*args) -> None:
     See https://openseespydoc.readthedocs.io/en/latest/src/block3D.html
     """
     pass
-
 
 def beamIntegration(*args) -> None:
     """``beamIntegration(type, tag, *args)``
@@ -126,7 +118,7 @@ def beamIntegration(*args) -> None:
     to represent distributed plasticity or non-prismatic section details in Beam-Column Elements,
     i.e., across the entire element domain [0, L].
 
-    Integration Methods for Distributed Plasticity. 
+    Integration Methods for Distributed Plasticity.
     Distributed plasticity methods permit yielding at any integration point along the element length.
 
     ``beamIntegration('Lobatto', tag, secTag, N)`` ------> prismatic section
@@ -149,7 +141,6 @@ def beamIntegration(*args) -> None:
     """
     pass
 
-
 def uniaxialMaterial(*args) -> None:
     """``uniaxialMaterial(matType, matTag, *matArgs)``
 
@@ -163,24 +154,17 @@ def uniaxialMaterial(*args) -> None:
     """
     pass
 
-
 def hystereticBackbone(*args) -> None:
-    """ backbone function, see https://openseespydoc.readthedocs.io/en/latest/src/Backbone.html
-    """
+    """backbone function, see https://openseespydoc.readthedocs.io/en/latest/src/Backbone.html"""
     pass
-
 
 def stiffnessDegradation(*args) -> None:
-    """``stiffnessDegradation(type, tag, *args)``
-    """
+    """``stiffnessDegradation(type, tag, *args)``"""
     pass
-
 
 def strengthDegradation(*args) -> None:
-    """``strengthDegradation(type, tag, *args)``
-    """
+    """``strengthDegradation(type, tag, *args)``"""
     pass
-
 
 def strengthControl(*args) -> None:
     """``strengthControl(type, tag, *args)``
@@ -189,12 +173,9 @@ def strengthControl(*args) -> None:
     """
     pass
 
-
 def unloadingRule(*args) -> None:
-    """``unloadingRule(type, tag, *args)``
-    """
+    """``unloadingRule(type, tag, *args)``"""
     pass
-
 
 def limitCurve(*args) -> None:
     """``limitCurve(type, arg1, arg2, ...)``
@@ -215,7 +196,6 @@ def limitCurve(*args) -> None:
     """
     pass
 
-
 def nDMaterial(*args) -> None:
     """``nDMaterial(matType, matTag, *matArgs)``
 
@@ -229,7 +209,6 @@ def nDMaterial(*args) -> None:
     * matArgs (list): a list of material arguments must be preceded with *.
     """
     pass
-
 
 def section(*args) -> None:
     """``section(secType, secTag, *secArgs)``
@@ -257,7 +236,6 @@ def section(*args) -> None:
     """
     pass
 
-
 def fiber(*args) -> None:
     """``fiber(yloc, zloc, A, matTag)``
 
@@ -271,7 +249,6 @@ def fiber(*args) -> None:
     """
     pass
 
-
 def patch(*args) -> None:
     """
     ``patch('quad', matTag, numSubdivIJ, numSubdivJK, *crdsI, *crdsJ, *crdsK, *crdsL)``
@@ -284,7 +261,6 @@ def patch(*args) -> None:
     """
     pass
 
-
 def layer(*args) -> None:
     """
     ``layer('straight', matTag, numFiber, areaFiber, *start, *end)``
@@ -294,7 +270,6 @@ def layer(*args) -> None:
     See https://openseespydoc.readthedocs.io/en/latest/src/layer.html
     """
     pass
-
 
 def frictionModel(*args) -> None:
     """``frictionModel(frnType, frnTag, *frnArgs)``
@@ -319,7 +294,6 @@ def frictionModel(*args) -> None:
     ``frictionModel('VelDepMultiLinear', frnTag, '-vel', *velPoints, '-frn', *frnPoints)``
     """
     pass
-
 
 def geomTransf(*args) -> None:
     """``geomTransf(transfType, transfTag, *transfArgs)``
@@ -347,7 +321,6 @@ def geomTransf(*args) -> None:
     """
     pass
 
-
 def fix(*args) -> None:
     """``fix(nodeTag, *constrValues)``
 
@@ -358,7 +331,6 @@ def fix(*args) -> None:
         0--free; 1--fixed
     """
     pass
-
 
 def fixX(*args) -> None:
     """``fixX(x, *constrValues, '-tol', tol=1e-10)``
@@ -372,7 +344,6 @@ def fixX(*args) -> None:
     """
     pass
 
-
 def fixY(*args) -> None:
     """``fixY(y, *constrValues, '-tol', tol=1e-10)``
 
@@ -384,7 +355,6 @@ def fixY(*args) -> None:
     * tol (float): user-defined tolerance (optional)
     """
     pass
-
 
 def fixZ(*args) -> None:
     """``fixZ(z, *constrValues, '-tol', tol=1e-10)``
@@ -398,7 +368,6 @@ def fixZ(*args) -> None:
     """
     pass
 
-
 def equalDOF(*args) -> None:
     """``equalDOF(rNodeTag, cNodeTag, *dofs)``
 
@@ -409,7 +378,6 @@ def equalDOF(*args) -> None:
     * dofs (list (int)) : nodal degrees-of-freedom that are constrained at the cNode to be the same as those at the rNo
     """
     pass
-
 
 def equalDOF_Mixed(*args) -> None:
     """``equalDOF_Mixed(rNodeTag, cNodeTag, numDOF, *rcdofs)``
@@ -425,7 +393,6 @@ def equalDOF_Mixed(*args) -> None:
     """
     pass
 
-
 def rigidDiaphragm(*args) -> None:
     """``rigidDiaphragm(perpDirn, rNodeTag, *cNodeTags)``
 
@@ -438,7 +405,6 @@ def rigidDiaphragm(*args) -> None:
     * cNodeTags (list (int)) : integar tags identifying the constrained (secondary) nodes
     """
     pass
-
 
 def rigidLink(*args) -> None:
     """``rigidLink(type, rNodeTag, cNodeTag)``
@@ -454,7 +420,6 @@ def rigidLink(*args) -> None:
     """
     pass
 
-
 def pressureConstraint(*args) -> None:
     """``pressureConstraint(nodeTag, pNodeTag)``
 
@@ -465,7 +430,6 @@ def pressureConstraint(*args) -> None:
     * pNodeTag (int) : tag of extra pressure node, which must exist before calling this command.
     """
     pass
-
 
 def timeSeries(*args) -> None:
     """``timeSeries(tsType, tsTag, *tsArgs)``
@@ -493,10 +457,9 @@ def timeSeries(*args) -> None:
     ``timeSeries('Rectangular', tag, tStart, tEnd, '-factor', factor=1.0)``
 
     ``timeSeries('Pulse', tag, tStart, tEnd, period, '-width', width=0.5,
-    '-shift', shift=0.0, '-factor', factor=1.0, '-zeroShift', zeroShift=0.0)``    
+    '-shift', shift=0.0, '-factor', factor=1.0, '-zeroShift', zeroShift=0.0)``
     """
     pass
-
 
 def pattern(*args) -> None:
     """``pattern(patternType, patternTag, *patternArgs)``
@@ -520,7 +483,6 @@ def pattern(*args) -> None:
     """
     pass
 
-
 def load(*args) -> None:
     """``load(nodeTag, *loadValues)``
 
@@ -536,7 +498,6 @@ def load(*args) -> None:
         The load factor times the reference values is the load that is actually applied to the node.
     """
     pass
-
 
 def eleLoad(*args) -> None:
     """
@@ -560,12 +521,11 @@ def eleLoad(*args) -> None:
         Each point (T1, y1) define a temperature and location. This command may accept 2,5 or 9 temperature points.
 
     Note:
-    * The load values are reference load values, it is the time series that provides the load factor. 
+    * The load values are reference load values, it is the time series that provides the load factor.
         The load factor times the reference values is the load that is actually applied to the element.
     * At the moment, eleLoads do not work with 3D beam-column elements if Corotational geometric transformation is used.
     """
     pass
-
 
 def sp(*args) -> None:
     """``sp(nodeTag, dof, dofValue)``
@@ -583,9 +543,8 @@ def sp(*args) -> None:
     """
     pass
 
-
 def groundMotion(*args) -> None:
-    """``groundMotion(gmTag, 'Plain', '-disp', dispSeriesTag, '-vel', 
+    """``groundMotion(gmTag, 'Plain', '-disp', dispSeriesTag, '-vel',
     velSeriesTag, '-accel', accelSeriesTag, '-int', tsInt='Trapezoidal', '-fact', factor=1.0)``
     ----> Plain Ground Motion, see https://openseespydoc.readthedocs.io/en/latest/src/groundMotion.html
 
@@ -593,7 +552,6 @@ def groundMotion(*args) -> None:
     ----> Interpolated Ground Motion, see https://openseespydoc.readthedocs.io/en/latest/src/interpolatedGroundMotion.html
     """
     pass
-
 
 def imposedMotion(*args) -> None:
     """``imposedMotion(nodeTag, dof, gmTag)``
@@ -608,7 +566,6 @@ def imposedMotion(*args) -> None:
     * gmTag (int) : pre-defined GroundMotion object tag.
     """
     pass
-
 
 def element(*args) -> None:
     """``element(eleType, eleTag, *eleNodes, *eleArgs)``
@@ -651,7 +608,6 @@ def element(*args) -> None:
     """
     pass
 
-
 def constraints(*args) -> None:
     """``constraints(constraintType, *constraintArgs)``
 
@@ -670,7 +626,6 @@ def constraints(*args) -> None:
     ``constraints('Transformation')``
     """
     pass
-
 
 def numberer(*args) -> None:
     """``numberer(numbererType, *numbererArgs)``
@@ -694,7 +649,6 @@ def numberer(*args) -> None:
     ``numberer('ParallelRCM')``
     """
     pass
-
 
 def system(*args) -> None:
     """``system(systemType, *systemArgs)``
@@ -720,7 +674,6 @@ def system(*args) -> None:
     """
     pass
 
-
 def test(*args) -> None:
     """``test(testType, *testArgs)``
 
@@ -737,7 +690,6 @@ def test(*args) -> None:
     ``test('EnergyIncr', tol, iter, pFlag=0, nType=2)``
     """
     pass
-
 
 def algorithm(*args) -> None:
     """``algorithm(algoType, *algoArgs)``
@@ -771,7 +723,6 @@ def algorithm(*args) -> None:
     """
 
     pass
-
 
 def integrator(*args) -> None:
     """``integrator(intType, *intArgs)``
@@ -808,7 +759,6 @@ def integrator(*args) -> None:
     """
     pass
 
-
 def analysis(analysisType: str) -> None:
     """``analysis(analysisType)``
 
@@ -817,12 +767,12 @@ def analysis(analysisType: str) -> None:
 
     1. determine the predictive step for time t+dt
     2. specify the tangent matrix and residual vector at any iteration
-    3. determine the corrective step based on the displacement increment dU 
+    3. determine the corrective step based on the displacement increment dU
 
     * analysisType (str) : char string identifying type of analysis object to be constructed.
-        Currently 3 valid options: 
+        Currently 3 valid options:
 
-        ``'Static'`` - for static analysis; 
+        ``'Static'`` - for static analysis;
 
         ``'Transient'`` - for transient analysis constant time step;
 
@@ -838,7 +788,6 @@ def analysis(analysisType: str) -> None:
     """
     pass
 
-
 def eigen(*args) -> list:
     """``eigen(<solver='-genBandArpack'>, numEigenvalues)``
 
@@ -850,7 +799,7 @@ def eigen(*args) -> list:
 
     Note
 
-    * The eigenvectors are stored at the nodes and can be printed out using a Node Recorder, 
+    * The eigenvectors are stored at the nodes and can be printed out using a Node Recorder,
         the nodeEigenvector command, or the Print command.
     * The default eigensolver is able to solve only for N-1 eigenvalues, where N is
         the number of inertial DOFs. When running into this limitation the -fullGenLapack
@@ -858,7 +807,6 @@ def eigen(*args) -> list:
     * The -fullGenLapack option is VERY SLOW for moderate to large models
     """
     pass
-
 
 def analyze(*args) -> int:
     """``analyze(numIncr=1, dt=0.0, dtMin=0.0, dtMax=0.0, Jd=0)``
@@ -876,7 +824,6 @@ def analyze(*args) -> int:
     """
     pass
 
-
 def modalProperties(*args) -> dict:
     """``modalProperties(<'-print'>, <'-file', reportFileName>, <'-unorm'>, <'-return'>)``
 
@@ -891,7 +838,6 @@ def modalProperties(*args) -> dict:
     * '-return' : (str) : Optional. If included, a report of the modal properties will be returned as a dict object to Python.
     """
     pass
-
 
 def responseSpectrumAnalysis(*args) -> None:
     """This command is used to perform a response spectrum analysis.
@@ -916,7 +862,6 @@ def responseSpectrumAnalysis(*args) -> None:
     """
     pass
 
-
 def wipe() -> None:
     """This command is used to destroy all constructed objects, i.e. all components of the model,
     all components of the analysis and all recorders.
@@ -927,13 +872,11 @@ def wipe() -> None:
     """
     pass
 
-
 def wipeAnalysis() -> None:
     """This command is used to destroy all components of the Analysis object, i.e.
     any objects created with system, numberer, constraints, integrator, algorithm, and analysis commands.
     """
     pass
-
 
 # ------------- OUTPUT------------
 def basicDeformation(eleTag: int) -> list:
@@ -943,14 +886,12 @@ def basicDeformation(eleTag: int) -> list:
     """
     pass
 
-
 def basicForce(eleTag: int) -> list:
     """Returns the forces of the basic system for a beam-column element.
 
     * eleTag (int) : element tag.
     """
     pass
-
 
 def basicStiffness(eleTag: int) -> list:
     """Returns the stiffness of the basic system for a beam-column element.
@@ -959,7 +900,6 @@ def basicStiffness(eleTag: int) -> list:
     * eleTag (int) : element tag.
     """
     pass
-
 
 def eleDynamicalForce(eleTag: int, dof: int = -1) -> Union[list, float]:
     """``eleDynamicalForce(eleTag, dof)``
@@ -971,7 +911,6 @@ def eleDynamicalForce(eleTag: int, dof: int = -1) -> Union[list, float]:
     """
     pass
 
-
 def eleForce(eleTag: int, dof: int = -1) -> Union[list, float]:
     """Returns the elemental resisting force.
 
@@ -980,14 +919,12 @@ def eleForce(eleTag: int, dof: int = -1) -> Union[list, float]:
     """
     pass
 
-
 def eleNodes(eleTag: int) -> list:
     """Get nodes in an element.
 
     * eletag (int) : element tag.
     """
     pass
-
 
 def eleResponse(eleTag: int, *args) -> list:
     """This command is used to obtain the same element quantities as those obtained from the element recorder at a particular time step.
@@ -998,7 +935,6 @@ def eleResponse(eleTag: int, *args) -> list:
     """
     pass
 
-
 def getEleTags(*args) -> list:
     """``getEleTags('-mesh', mtag)``
 
@@ -1008,7 +944,6 @@ def getEleTags(*args) -> list:
     """
     pass
 
-
 def getLoadFactor(patternTag: int) -> float:
     """
     Returns the load factor λ for the pattern with patternTag
@@ -1016,7 +951,6 @@ def getLoadFactor(patternTag: int) -> float:
     * patternTag (int) : pattern tag.
     """
     pass
-
 
 def getNodeTags(*args) -> list:
     """getNodeTags('-mesh', mtag)
@@ -1026,12 +960,9 @@ def getNodeTags(*args) -> list:
     """
     pass
 
-
 def getTime() -> float:
-    """Returns the current time in the domain.
-    """
+    """Returns the current time in the domain."""
     pass
-
 
 def nodeAccel(nodeTag: int, dof: int = -1) -> Union[list, float]:
     """Returns the current acceleration at a specified node.
@@ -1042,7 +973,6 @@ def nodeAccel(nodeTag: int, dof: int = -1) -> Union[list, float]:
     """
     pass
 
-
 def nodeVel(nodeTag: int, dof: int = -1) -> Union[list, float]:
     """Returns the current velocity at a specified node.
 
@@ -1051,7 +981,6 @@ def nodeVel(nodeTag: int, dof: int = -1) -> Union[list, float]:
     if no dof is provided, a list of values for all dofs is returned.
     """
     pass
-
 
 def nodeDisp(nodeTag: int, dof: int = -1) -> Union[list, float]:
     """Returns the current displacement at a specified node.
@@ -1062,12 +991,9 @@ def nodeDisp(nodeTag: int, dof: int = -1) -> Union[list, float]:
     """
     pass
 
-
 def nodeBounds() -> list:
-    """Get the boundary of all nodes. Return a list of boundary values
-    """
+    """Get the boundary of all nodes. Return a list of boundary values"""
     pass
-
 
 def nodeCoord(*args) -> list:
     """``nodeCoord(nodeTag, dim=-1)``
@@ -1078,7 +1004,6 @@ def nodeCoord(*args) -> list:
         if no dim is provided, a list of values for all dimensions is returned.
     """
     pass
-
 
 def nodeEigenvector(*args) -> Union[list, float]:
     """``nodeEigenvector(nodeTag, eigenvector, dof=-1)``
@@ -1091,7 +1016,6 @@ def nodeEigenvector(*args) -> Union[list, float]:
     """
     pass
 
-
 def nodeDOFs(nodeTag: int) -> list:
     """Returns the DOF numbering of a node.
 
@@ -1099,18 +1023,16 @@ def nodeDOFs(nodeTag: int) -> list:
     """
     pass
 
-
 def nodeMass(nodeTag: int, dof: int = -1) -> Union[list, float]:
     """``nodeMass(nodeTag, dof=-1)``
 
     Returns the mass at a specified node.
 
     * nodeTag (int) : node tag.
-    * dof (int) : specific dof at the node (1 through ndf), (optional), if no dof is provided, 
+    * dof (int) : specific dof at the node (1 through ndf), (optional), if no dof is provided,
         a list of values for all dofs is returned.
     """
     pass
-
 
 def nodePressure(nodeTag: int) -> list:
     """
@@ -1119,7 +1041,6 @@ def nodePressure(nodeTag: int) -> list:
     * nodeTag (int) : node tag.
     """
     pass
-
 
 def nodeReaction(nodeTag: int, dof: int = -1) -> Union[list, float]:
     """Returns the reactions at a specified node.
@@ -1130,7 +1051,6 @@ def nodeReaction(nodeTag: int, dof: int = -1) -> Union[list, float]:
         if no dof is provided, a list of values for all dofs is returned.
     """
     pass
-
 
 def nodeResponse(nodeTag: int, dof: int, responseID: int) -> float:
     """Returns the responses at a specified node.
@@ -1151,7 +1071,6 @@ def nodeResponse(nodeTag: int, dof: int, responseID: int) -> float:
     """
     pass
 
-
 def nodeUnbalance(nodeTag: int, dof: int = -1) -> Union[list, float]:
     """Returns the unbalanced force at a specified node.
 
@@ -1161,16 +1080,13 @@ def nodeUnbalance(nodeTag: int, dof: int = -1) -> Union[list, float]:
     """
     pass
 
-
 def numFact() -> int:
     """Return the number of factorizations."""
     pass
 
-
 def numIter() -> int:
     """Return the number of iterations."""
     pass
-
 
 def printA(*args) -> Union[list, None]:
     """``printA('-file', filename, '-ret')``
@@ -1185,7 +1101,6 @@ def printA(*args) -> Union[list, None]:
     """
     pass
 
-
 def printB(*args) -> Union[list, None]:
     """``printA('-file', filename, '-ret')``
 
@@ -1195,7 +1110,6 @@ def printB(*args) -> Union[list, None]:
     * '-ret' (str) : return the A matrix as a list. (optional)
     """
     pass
-
 
 def printModel(*args) -> None:
     """``printModel('-JSON', '-file', filename, '-node', '-flag', flag, *nodes=[], *eles=[])``
@@ -1215,7 +1129,6 @@ def printModel(*args) -> None:
     """
     pass
 
-
 def record() -> None:
     """This command is used to cause all the recorders to do a record on the current state of the model.
 
@@ -1227,7 +1140,6 @@ def record() -> None:
     for example the user wishes to include the state of the model at time 0.0 before any analysis has been completed.
     """
     pass
-
 
 def recorder(*args) -> int:
     """``recorder(recorderType, *recorderArgs)``
@@ -1275,7 +1187,6 @@ def recorder(*args) -> int:
     """
     pass
 
-
 def sectionForce(eleTag: int, secNum: int, dof: int = -1) -> Union[list, float]:
     """Returns the section force for a beam-column element.
     The dof of the section depends on the section type. Please check with the section manual.
@@ -1285,7 +1196,6 @@ def sectionForce(eleTag: int, secNum: int, dof: int = -1) -> Union[list, float]:
     * dof (int) : the dof of the section
     """
     pass
-
 
 def sectionDeformation(eleTag: int, secNum: int, dof: int = -1) -> Union[list, float]:
     """Returns the section deformation for a beam-column element.
@@ -1297,7 +1207,6 @@ def sectionDeformation(eleTag: int, secNum: int, dof: int = -1) -> Union[list, f
     """
     pass
 
-
 def sectionStiffness(eleTag: int, secNum: int) -> list:
     """Returns the section stiffness matrix for a beam-column element.
     A list of values in the row order will be returned.
@@ -1306,7 +1215,6 @@ def sectionStiffness(eleTag: int, secNum: int) -> list:
     * secNum (int) : section number, i.e. the Gauss integratio number
     """
     pass
-
 
 def sectionFlexibility(eleTag: int, secNum: int) -> list:
     """Returns the section flexibility matrix for a beam-column element.
@@ -1317,7 +1225,6 @@ def sectionFlexibility(eleTag: int, secNum: int) -> list:
     """
     pass
 
-
 def sectionLocation(eleTag: int, secNum: int = 0) -> Union[list, float]:
     """Returns the locations of integration points of a section for a beam-column element.
 
@@ -1326,7 +1233,6 @@ def sectionLocation(eleTag: int, secNum: int = 0) -> Union[list, float]:
         If 0, return all sections.
     """
     pass
-
 
 def sectionWeight(eleTag: int, secNum: int = 0) -> Union[list, float]:
     """Returns the weights of integration points of a section for a beam-column element.
@@ -1337,17 +1243,13 @@ def sectionWeight(eleTag: int, secNum: int = 0) -> Union[list, float]:
     """
     pass
 
-
 def systemSize() -> int:
     """Return the size of the system."""
     pass
 
-
 def testIter() -> int:
-    """Returns the number of iterations the convergence test took in the last analysis step
-    """
+    """Returns the number of iterations the convergence test took in the last analysis step"""
     pass
-
 
 def testNorm() -> list:
     """Returns the norms from the convergence test for the last analysis step.
@@ -1359,7 +1261,6 @@ def testNorm() -> list:
     """
     pass
 
-
 def testNorms() -> list:
     """Returns the norms from the convergence test for the last analysis step.
 
@@ -1370,12 +1271,9 @@ def testNorms() -> list:
     """
     pass
 
-
 def version() -> str:
-    """Return the current OpenSees version.
-    """
+    """Return the current OpenSees version."""
     pass
-
 
 def testUniaxialMaterial(tag: int) -> None:
     """
@@ -1387,54 +1285,37 @@ def testUniaxialMaterial(tag: int) -> None:
     """
     pass
 
-
 def setStrain(strain: float, strainRate: float = 0.0) -> None:
-    """Set the stain of the test uniaxial material.
-    """
+    """Set the stain of the test uniaxial material."""
     pass
-
 
 def getStrain() -> float:
-    """Get the stain of the test uniaxial material.
-    """
+    """Get the stain of the test uniaxial material."""
     pass
-
 
 def getStress() -> float:
-    """Get the stress of the test uniaxial material.
-    """
+    """Get the stress of the test uniaxial material."""
     pass
-
 
 def getTangent() -> float:
-    """Get the tangent of the test uniaxial material.
-    """
+    """Get the tangent of the test uniaxial material."""
     pass
-
 
 def getDampTangent() -> float:
-    """Get the damp tangent of the test uniaxial material.
-    """
+    """Get the damp tangent of the test uniaxial material."""
     pass
-
 
 def getPatterns() -> list:
-    """Return all pattern tags.
-    """
+    """Return all pattern tags."""
     pass
-
 
 def getFixedNodes() -> list:
-    """Return all fixed node tags.
-    """
+    """Return all fixed node tags."""
     pass
-
 
 def getFixedDOFs(nodeTag: int) -> list:
-    """Return fixed dofs of the node.
-    """
+    """Return fixed dofs of the node."""
     pass
-
 
 def getConstrainedNodes(*args) -> list:
     """``getConstrainedNodes(<rNodeTag>)``
@@ -1444,30 +1325,21 @@ def getConstrainedNodes(*args) -> list:
     """
     pass
 
-
 def getConstrainedDOFs(*args) -> list:
-    """``getConstrainedDOFs(cNode, <rNode>, <rDOF>)``
-    """
+    """``getConstrainedDOFs(cNode, <rNode>, <rDOF>)``"""
     pass
-
 
 def getRetainedNodes(*args) -> list:
-    """``getRetainedNodes(<cNodeTag>)``
-    """
+    """``getRetainedNodes(<cNodeTag>)``"""
     pass
-
 
 def getRetainedDOFs(*args) -> list:
-    """``getRetainedDOFs(rNode, <cNode>, <cDOF>)``
-    """
+    """``getRetainedDOFs(rNode, <cNode>, <cDOF>)``"""
     pass
-
 
 def updateElementDomain() -> None:
-    """
-    """
+    """ """
     pass
-
 
 def updateMaterialStage(*args) -> None:
     """``updateMaterialStage('-material', matTag, '-stage', value, <'-parameter', paramTag>)``
@@ -1482,14 +1354,12 @@ def updateMaterialStage(*args) -> None:
     """
     pass
 
-
 def getNDM(*args) -> Union[list, int]:
     """``getNDM(<nodeTag>)``
 
     * nodeTag: int, optional.
     """
     pass
-
 
 def getNDF(*args) -> Union[list, int]:
     """``getNDM(<nodeTag>)``
@@ -1498,24 +1368,17 @@ def getNDF(*args) -> Union[list, int]:
     """
     pass
 
-
 def eleType(eleTag: int) -> str:
-    """
-    """
+    """ """
     pass
-
 
 def getCrdTransfTags() -> list:
-    """getCrdTransfTags
-    """
+    """getCrdTransfTags"""
     pass
-
 
 def getNumElements() -> int:
-    """getNumElements
-    """
+    """getNumElements"""
     pass
-
 
 def getEleClassTags(*args) -> Union[list, int]:
     """``getEleClassTags(<eleTag>)``
@@ -1524,14 +1387,12 @@ def getEleClassTags(*args) -> Union[list, int]:
     """
     pass
 
-
 def getEleLoadClassTags(*args) -> list:
     """``getEleLoadClassTags(<patternTag>)``
 
     *patternTag: int, optional
     """
     pass
-
 
 def getEleLoadTags(*args) -> list:
     """``getEleLoadTags(<patternTag>)``
@@ -1540,14 +1401,12 @@ def getEleLoadTags(*args) -> list:
     """
     pass
 
-
 def getEleLoadData(*args) -> list:
     """``getEleLoadData(<patternTag>)``
 
     *patternTag: int, optional
     """
     pass
-
 
 def getNodeLoadTags(*args) -> list:
     """``getNodeLoadTags(<patternTag>)``
@@ -1556,14 +1415,12 @@ def getNodeLoadTags(*args) -> list:
     """
     pass
 
-
 def getNodeLoadData(*args) -> list:
     """``getNodeLoadData(<patternTag>)``
 
     *patternTag: int, optional
     """
     pass
-
 
 # ------------
 def loadConst(*args) -> None:
@@ -1582,7 +1439,6 @@ def loadConst(*args) -> None:
     """
     pass
 
-
 def modalDamping(*args) -> None:
     """``modalDamping(*factor)``
 
@@ -1591,7 +1447,6 @@ def modalDamping(*args) -> None:
     * factor (list) : damping factor.
     """
     pass
-
 
 def reactions(*args) -> None:
     """``reactions('-dynamic', '-rayleigh')``
@@ -1602,7 +1457,6 @@ def reactions(*args) -> None:
     *'-rayleigh' (str) : Include rayleigh damping.
     """
     pass
-
 
 def remove(*args) -> None:
     """``remove(type, tag)``
@@ -1619,7 +1473,6 @@ def remove(*args) -> None:
     """
     pass
 
-
 def reset() -> None:
     """This command is used to set the state of the domain to its original state.
 
@@ -1630,7 +1483,6 @@ def reset() -> None:
     if elements have been removed
     """
     pass
-
 
 def sdfResponse(*args) -> list:
     """``sdfResponse(m, zeta, k, Fy, alpha, dtF, filename, dt[, uresidual, umaxprev])``
@@ -1666,7 +1518,6 @@ def sdfResponse(*args) -> list:
     """
     pass
 
-
 def database(type: str, dbName: str) -> None:
     """Create a database.
 
@@ -1682,14 +1533,12 @@ def database(type: str, dbName: str) -> None:
     """
     pass
 
-
 def restore(commitTag: int) -> None:
     """Restore data from database, which should be created through database().
 
     * commitTag (int) : a tag identify the commit
     """
     pass
-
 
 def save(commitTag: int) -> None:
     """Save current state to database, which should be created through database().
@@ -1698,7 +1547,6 @@ def save(commitTag: int) -> None:
     """
     pass
 
-
 def InitialStateAnalysis(flag: str) -> None:
     """Set the initial state analysis to 'on' or 'off'
 
@@ -1706,14 +1554,12 @@ def InitialStateAnalysis(flag: str) -> None:
     """
     pass
 
-
 def setTime(pseudoTime: float) -> None:
     """This command is used to set the time in the Domain.
 
     * pseudoTime (float) : Time domain to be set.
     """
     pass
-
 
 def setNodeCoord(nodeTag: int, dim: int, value: float) -> None:
     """set the nodal coodinate at the specified dimension.
@@ -1723,7 +1569,6 @@ def setNodeCoord(nodeTag: int, dim: int, value: float) -> None:
     * value (float) : coordinate value
     """
     pass
-
 
 def setNodeDisp(*args) -> None:
     """``setNodeDisp(nodeTag, dof, value, <'-commit'>)``
@@ -1737,7 +1582,6 @@ def setNodeDisp(*args) -> None:
     """
     pass
 
-
 def setNodeVel(*args) -> None:
     """``setNodeVel(nodeTag, dof, value, <'-commit'>)``
 
@@ -1749,7 +1593,6 @@ def setNodeVel(*args) -> None:
     * '-commit' (str) : commit nodal state. (optional)
     """
     pass
-
 
 def setNodeAccel(*args) -> None:
     """``setNodeAccel(nodeTag, dof, value, <'-commit'>)``
@@ -1763,14 +1606,12 @@ def setNodeAccel(*args) -> None:
     """
     pass
 
-
 def setPrecision(precision: int) -> None:
     """Set the precision for screen output.
 
     * precision (int) : the precision number.
     """
     pass
-
 
 def setElementRayleighDampingFactors(eleTag: int, alphaM: float, betaK: float, betaK0: float, betaKc: float) -> None:
     """Set the rayleigh() damping for an element.
@@ -1783,18 +1624,13 @@ def setElementRayleighDampingFactors(eleTag: int, alphaM: float, betaK: float, b
     """
     pass
 
-
 def start() -> None:
-    """Start the timer.
-    """
+    """Start the timer."""
     pass
-
 
 def stop() -> None:
-    """Stop the timer and print timing information.
-    """
+    """Stop the timer and print timing information."""
     pass
-
 
 def stripXML(inputml: str, outputdata: str, outputxml: str) -> None:
     """Strip a xml file to a data file and a descriptive file.
@@ -1805,7 +1641,6 @@ def stripXML(inputml: str, outputdata: str, outputxml: str) -> None:
     """
     pass
 
-
 def setNumThreads(num: int) -> None:
     """set the number of threads to be used in the multi-threaded environment.
 
@@ -1813,12 +1648,9 @@ def setNumThreads(num: int) -> None:
     """
     pass
 
-
 def getNumThreads() -> int:
-    """return the total number of threads available.
-    """
+    """return the total number of threads available."""
     pass
-
 
 def convertBinaryToText(inputfile: str, outputfile: str) -> None:
     """Convert binary file to text file.
@@ -1828,7 +1660,6 @@ def convertBinaryToText(inputfile: str, outputfile: str) -> None:
     """
     pass
 
-
 def convertTextToBinary(inputfile: str, outputfile: str) -> None:
     """Convert text file to binary file.
 
@@ -1836,7 +1667,6 @@ def convertTextToBinary(inputfile: str, outputfile: str) -> None:
     * outputfile (str) : output file name.
     """
     pass
-
 
 def mesh(*args) -> None:
     """``mesh(type, tag, *args)``
@@ -1860,12 +1690,9 @@ def mesh(*args) -> None:
     """
     pass
 
-
 def remesh(alpha: float = -1.0) -> None:
-    """See https://openseespydoc.readthedocs.io/en/latest/src/remesh.html
-    """
+    """See https://openseespydoc.readthedocs.io/en/latest/src/remesh.html"""
     pass
-
 
 # ----------- Sensitivity Commands ---------------
 def parameter(tag: int, *args) -> None:
@@ -1904,7 +1731,6 @@ def parameter(tag: int, *args) -> None:
     """
     pass
 
-
 def addToParameter(tag: int, *args) -> None:
     """``addToParameter(tag, <specific parameter args>)``
 
@@ -1916,7 +1742,6 @@ def addToParameter(tag: int, *args) -> None:
     """
     pass
 
-
 def updateParameter(tag: int, newValue: float) -> None:
     """Once the parameters in FE model are defined, their value can be updated.
     See https://openseespydoc.readthedocs.io/en/latest/src/updateParameter.html
@@ -1925,7 +1750,6 @@ def updateParameter(tag: int, newValue: float) -> None:
     * newValue (float) : the updated value to which the parameter needs to be set.
     """
     pass
-
 
 def setParameter(*args) -> None:
     """``setParameter('-val', newValue, <'-ele', *eleTags>, <'-eleRange', start, end>, <*args>)``
@@ -1940,12 +1764,9 @@ def setParameter(*args) -> None:
     """
     pass
 
-
 def getParamTags() -> list:
-    """Return a list of tags for all parameters.
-    """
+    """Return a list of tags for all parameters."""
     pass
-
 
 def getParamValue(paramTag: int) -> float:
     """Return the value of a parameter.
@@ -1954,13 +1775,11 @@ def getParamValue(paramTag: int) -> float:
     """
     pass
 
-
 def computeGradients() -> None:
     """This command is used to perform a sensitivity analysis.
     If the user wants to call this command, then the ``'-computeByCommand'`` should be set in the ``sensitivityAlgorithm`` command.
     """
     pass
-
 
 def sensitivityAlgorithm(type: str) -> None:
     """This command is used to create a sensitivity algorithm.
@@ -1973,7 +1792,6 @@ def sensitivityAlgorithm(type: str) -> None:
     """
     pass
 
-
 def sensNodeDisp(nodeTag: int, dof: int, paramTag: int) -> float:
     """Returns the current displacement sensitivity to a parameter at a specified node.
 
@@ -1982,7 +1800,6 @@ def sensNodeDisp(nodeTag: int, dof: int, paramTag: int) -> float:
     * paramTag (int) : parameter tag
     """
     pass
-
 
 def sensNodeVel(nodeTag: int, dof: int, paramTag: int) -> float:
     """Returns the current velocity sensitivity to a parameter at a specified node.
@@ -1993,7 +1810,6 @@ def sensNodeVel(nodeTag: int, dof: int, paramTag: int) -> float:
     """
     pass
 
-
 def sensNodeAccel(nodeTag: int, dof: int, paramTag: int) -> float:
     """Returns the current velocity acceleration to a parameter at a specified node.
 
@@ -2003,7 +1819,6 @@ def sensNodeAccel(nodeTag: int, dof: int, paramTag: int) -> float:
     """
     pass
 
-
 def sensLambda(patternTag: int, paramTag: int) -> float:
     """Returns the current load factor sensitivity to a parameter in a load pattern.
 
@@ -2011,7 +1826,6 @@ def sensLambda(patternTag: int, paramTag: int) -> float:
     * paramTag (int) : parameter tag
     """
     pass
-
 
 def sensSectionForce(*args) -> float:
     """``sensSectionForce(eleTag, <secNum>, dof, paramTag)``
@@ -2025,7 +1839,6 @@ def sensSectionForce(*args) -> float:
     """
     pass
 
-
 def sensNodePressure(nodeTag: int, paramTag: int) -> float:
     """Returns the current pressure sensitivity to a parameter at a specified node.
 
@@ -2033,7 +1846,6 @@ def sensNodePressure(nodeTag: int, paramTag: int) -> float:
     * paramTag (int): parameter tag
     """
     pass
-
 
 # -------------Reliability Commands---------------
 def randomVariable(*args) -> None:
@@ -2045,67 +1857,47 @@ def randomVariable(*args) -> None:
     """
     pass
 
-
 def getRVTags() -> list:
-    """Get the tags of all random variables.
-    """
+    """Get the tags of all random variables."""
     pass
-
 
 def getRVParamTag(rvTag: int) -> int:
-    """Get parameter tag for random variable rvTag.
-    """
+    """Get parameter tag for random variable rvTag."""
     pass
-
 
 def getRVValue(rvTag: int) -> float:
-    """Get the current value for random variable rvTag.
-    """
+    """Get the current value for random variable rvTag."""
     pass
-
 
 def getMean(rvTag: int) -> float:
-    """Get the mean for random variable rvTag.
-    """
+    """Get the mean for random variable rvTag."""
     pass
-
 
 def getStdv(rvTag: int) -> float:
-    """Get the standard deviation for random variable rvTag.
-    """
+    """Get the standard deviation for random variable rvTag."""
     pass
-
 
 def getPDF(rvTag: int, X: float) -> float:
-    """Get the probability density function value for random variable rvTag at X.
-    """
+    """Get the probability density function value for random variable rvTag at X."""
     pass
-
 
 def getCDF(rvTag: int, X: float) -> float:
-    """Get the cumulative distribution function value for random variable rvTag at X.
-    """
+    """Get the cumulative distribution function value for random variable rvTag at X."""
     pass
-
 
 def getInverseCDF(rvTag: int, p: float) -> float:
-    """Get the inverse CDF value for random variable rvTag at probability p.
-    """
+    """Get the inverse CDF value for random variable rvTag at probability p."""
     pass
-
 
 def correlate(rvTag1: int, rvTag2: int, rho: float) -> None:
-    """Add the correlation coefficient rho between rvTag1 and rvTag2.
-    """
+    """Add the correlation coefficient rho between rvTag1 and rvTag2."""
     pass
-
 
 def functionEvaluator(type_: str, *args) -> None:
     """
     ``functionEvaluator('Python', <'-file', filename>) ``
     """
     pass
-
 
 def gradientEvaluator(type_: str, *args) -> None:
     """
@@ -2115,14 +1907,12 @@ def gradientEvaluator(type_: str, *args) -> None:
     """
     pass
 
-
 def performanceFunction(tag: int, *args) -> None:
     """
     ``performanceFunction(tag: int, <lsf: str>)``
     Add performance function lsf with tag to the reliability domain.
     """
     pass
-
 
 def gradPerformanceFunction(lsfTag: int, rvTag: int, expr: str) -> None:
     """
@@ -2136,7 +1926,6 @@ def gradPerformanceFunction(lsfTag: int, rvTag: int, expr: str) -> None:
     """
     pass
 
-
 def transformUtoX(*args) -> list:
     """
     ``transformUtoX(u1, u2, ... , un, <rvTag1, rvTag2, ... , rvTagn>)``
@@ -2146,12 +1935,9 @@ def transformUtoX(*args) -> list:
     """
     pass
 
-
 def wipeReliability() -> None:
-    """Wipe the Reliability domin.
-    """
+    """Wipe the Reliability domin."""
     pass
-
 
 def probabilityTransformation(type_: str, *args) -> None:
     """Create probability transformation.
@@ -2161,7 +1947,6 @@ def probabilityTransformation(type_: str, *args) -> None:
     ``probabilityTransformation('AllIndependent', <'-print', printTag(0)>)``
     """
     pass
-
 
 def startPoint(type_: str, *args) -> None:
     """Set the start point.
@@ -2176,13 +1961,11 @@ def startPoint(type_: str, *args) -> None:
     """
     pass
 
-
 def randomNumberGenerator(type_: str) -> None:
     """
     ``randomNumberGenerator('CStdLib')``
     """
     pass
-
 
 def reliabilityConvergenceCheck(type_: str, *args) -> None:
     """Set Standard or Optimality convergence check.
@@ -2194,7 +1977,6 @@ def reliabilityConvergenceCheck(type_: str, *args) -> None:
     <<'-e1', e1>, <'-e2', e2>, <'-scaleValue', scaleValue>, <'-print', print>>)``
     """
     pass
-
 
 def searchDirection(type_: str, *args) -> None:
     """Set the type of search direction.
@@ -2209,7 +1991,6 @@ def searchDirection(type_: str, *args) -> None:
     """
     pass
 
-
 def meritFunctionCheck(type_: str, *args) -> None:
     """Set the type of merit function check.
 
@@ -2220,7 +2001,6 @@ def meritFunctionCheck(type_: str, *args) -> None:
     ``meritFunctionCheck('SQP', <'-factor', factor(0.5)>)``
     """
     pass
-
 
 def stepSizeRule(type_: str, *args) -> None:
     """Set the type of step size rule.
@@ -2233,7 +2013,6 @@ def stepSizeRule(type_: str, *args) -> None:
     """
     pass
 
-
 def rootFinding(type_: str, *args) -> None:
     """Set the type of rootFinding.
 
@@ -2241,7 +2020,6 @@ def rootFinding(type_: str, *args) -> None:
     <'-maxStepLength', maxStepLength(1.0)>>)``
     """
     pass
-
 
 def findDesignPoint(type_: str, *args) -> None:
     """Set the type of findDesignPoint.
@@ -2253,12 +2031,9 @@ def findDesignPoint(type_: str, *args) -> None:
     """
     pass
 
-
 def runFOSMAnalysis(filename: str) -> None:
-    """Run FOSM Analysis.
-    """
+    """Run FOSM Analysis."""
     pass
-
 
 def runFORMAnalysis(filename: str, *args) -> None:
     """Run FORM Analysis.
@@ -2267,12 +2042,9 @@ def runFORMAnalysis(filename: str, *args) -> None:
     """
     pass
 
-
 def getLSFTags() -> list:
-    """Get all the tags of Limit State Functions.
-    """
+    """Get all the tags of Limit State Functions."""
     pass
-
 
 def runImportanceSamplingAnalysis(filename: str, *args) -> None:
     """
@@ -2284,26 +2056,20 @@ def runImportanceSamplingAnalysis(filename: str, *args) -> None:
     """
     pass
 
-
 # -----------Parallel Commands--------------------
 def getPID() -> int:
-    """Get the processor ID of the calling processor.
-    """
+    """Get the processor ID of the calling processor."""
     pass
-
 
 def getNP() -> int:
-    """Get total number of processors.
-    """
+    """Get total number of processors."""
     pass
-
 
 def barrier() -> None:
     """Set a barrier for all processors, i.e., faster processors
     will pause here to wait for all processors to reach to this point.
     """
     pass
-
 
 def send(*args) -> None:
     """``send('-pid', pid, *data)``
@@ -2321,7 +2087,6 @@ def send(*args) -> None:
     """
     pass
 
-
 def recv(*args) -> None:
     """``recv('-pid', pid)``
 
@@ -2336,7 +2101,6 @@ def recv(*args) -> None:
     """
     pass
 
-
 def Bcast(*data) -> None:
     """Broadcast information from processor 0 to all processors.
 
@@ -2350,17 +2114,15 @@ def Bcast(*data) -> None:
     """
     pass
 
-
 def setStartNodeTag(ndtag: int) -> None:
     """Set the starting node tag for the mesh command. The purpose of this command is to control
     the node tags generated by the mesh command. Some nodes are shared by processors,
-    which must have same tags. Nodes which are unique to a processor must have uniques 
+    which must have same tags. Nodes which are unique to a processor must have uniques
     tags across all processors.
 
     * ndtag (int) : starting node tag for the next call of mesh command.
     """
     pass
-
 
 def domainChange() -> None:
     """Mark the domain has changed manually.
@@ -2369,7 +2131,6 @@ def domainChange() -> None:
     """
     pass
 
-
 def partition(*args) -> None:
     """``partition('-ncuts', ncuts, '-niter', niters, '-ufactor', ufactor, '-info')``
 
@@ -2377,7 +2138,7 @@ def partition(*args) -> None:
     It requires that all processors have the exact same model to be partitioned.
 
     * ncuts (int) : Specifies the number of different partitionings that it will compute.
-        The final partitioning is the one that achieves the best edge cut or communication volume. 
+        The final partitioning is the one that achieves the best edge cut or communication volume.
         (Optional default is 1).
     * niters (int) : Specifies the number of iterations for the refinement algorithms at
         each stage of the uncoarsening process. (Optional default is 10).
@@ -2387,12 +2148,9 @@ def partition(*args) -> None:
     """
     pass
 
-
 def domainCommitTag(commitTag: int) -> int:
-    """
-    """
+    """ """
     pass
-
 
 def IGA(type_: str, *args) -> None:
     """Isogeometric Analysis.
@@ -2428,7 +2186,6 @@ def IGA(type_: str, *args) -> None:
     <'-elementStartTag', elementStartTag>)``
     """
     pass
-
 
 def NDTest(type_: str, *args) -> Union[list, None]:
     """Test the nD material.

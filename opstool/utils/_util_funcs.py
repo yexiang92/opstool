@@ -1,22 +1,26 @@
 import os
-import sys
 import shutil
-import numpy as np
+import sys
+from contextlib import contextmanager
+from itertools import cycle
 from pathlib import Path
 from typing import Union
-from itertools import cycle
-from contextlib import contextmanager
-from .consts import CONSTANTS
 
-CONSOLE = CONSTANTS.get_console()
-PKG_PREFIX = CONSTANTS.get_pkg_prefix()
+import numpy as np
+
+from .consts import CONFIGS
+
+CONSOLE = CONFIGS.get_console()
+PKG_PREFIX = CONFIGS.get_pkg_prefix()
 
 
-RESULTS_DIR = CONSTANTS.get_output_dir()
+RESULTS_DIR = CONFIGS.get_output_dir()
+
 
 def _check_odb_path():
     if not os.path.exists(RESULTS_DIR):
         os.mkdir(RESULTS_DIR)
+
 
 def set_odb_path(path: str):
     """Set the output directory for the results saving.
@@ -26,7 +30,7 @@ def set_odb_path(path: str):
     path: str
         The path to the output directory.
     """
-    CONSTANTS.set_output_dir(path)
+    CONFIGS.set_output_dir(path)
     if os.path.exists(RESULTS_DIR):
         for item in os.listdir(RESULTS_DIR):
             source_path = os.path.join(RESULTS_DIR, item)
@@ -52,16 +56,16 @@ def check_file_type(file_name: str, file_type: Union[str, list, tuple]):
     if file_name:
         if isinstance(file_type, str):
             if not file_name.endswith(file_type):
-                raise ValueError(f"file must be endswith {file_type}!")
-        elif isinstance(file_type, list) or isinstance(file_type, tuple):
+                raise ValueError(f"file must be endswith {file_type}!")  # noqa: TRY003
+        elif isinstance(file_type, (list, tuple)):
             check = False
             for type_ in file_type:
                 if file_name.endswith(type_):
                     check = True
             if not check:
-                raise ValueError(f"file must be endswith in {file_type}!")
+                raise ValueError(f"file must be endswith in {file_type}!")  # noqa: TRY003
         else:
-            raise ValueError("file_type must be str or list or tuple!")
+            raise ValueError("file_type must be str or list or tuple!")  # noqa: TRY003
 
 
 def add_ops_hints_file():
@@ -95,8 +99,7 @@ def add_ops_hints_file():
 
 
 def print_version():
-    """Print pacakge version.
-    """
+    """Print pacakge version."""
     from ..__about__ import __version__
 
     CONSOLE.print(__version__, style="bold #0343df")
@@ -187,7 +190,7 @@ def suppress_ops_print():
     stderr = sys.stderr
     try:
         # Redirect stdout and stderr to null (discard output)
-        with open(os.devnull, 'w') as fnull:
+        with open(os.devnull, "w") as fnull:
             sys.stdout = fnull
             sys.stderr = fnull
             yield

@@ -1,80 +1,85 @@
-from typing import Union, List, Tuple
+from typing import Optional, Union
 
 import numpy as np
 import plotly.graph_objs as go
 from plotly.subplots import make_subplots
 
-
+from ...post import load_eigen_data, load_linear_buckling_data
+from ...utils import CONFIGS
+from .plot_resp_base import PlotResponseBase
 from .plot_utils import (
     PLOT_ARGS,
-    _plot_unstru_cmap,
-    _plot_lines_cmap,
     _get_line_cells,
     _get_unstru_cells,
-    _VTKElementTriangulator,
-    _make_lines_plotly,
-    _get_plotly_dim_scene
+    _plot_lines_cmap,
+    _plot_unstru_cmap,
 )
 from .vis_model import PlotModelBase
-from ...post import load_eigen_data
-from ...utils import CONSTANTS
 
-PKG_NAME = CONSTANTS.get_pkg_name()
-SHAPE_MAP = CONSTANTS.get_shape_map()
+PKG_NAME = CONFIGS.get_pkg_name()
+SHAPE_MAP = CONFIGS.get_shape_map()
 
 
-class PlotEigenBase:
+class PlotEigenBase(PlotResponseBase):
     def __init__(self, model_info, modal_props, eigen_vectors):
         self.nodal_data = model_info["NodalData"]
-        self.nodal_tags = self.nodal_data.coords["tags"]
+        self.nodal_tags = self.nodal_data.coords["nodeTags"]
         self.points = self.nodal_data.to_numpy()
         self.ndims = self.nodal_data.attrs["ndims"]
         self.bounds = self.nodal_data.attrs["bounds"]
         self.min_bound_size = self.nodal_data.attrs["minBoundSize"]
         self.max_bound_size = self.nodal_data.attrs["maxBoundSize"]
-        self.show_zaxis = False if np.max(self.ndims) <= 2 else True
+        self.show_zaxis = not np.max(self.ndims) <= 2
         # -------------------------------------------------------------
         self.line_data = model_info["AllLineElesData"]
         self.line_cells, self.line_tags = _get_line_cells(self.line_data)
         # -------------------------------------------------------------
         self.unstru_data = model_info["UnstructuralData"]
-        self.unstru_tags, self.unstru_cell_types, self.unstru_cells = _get_unstru_cells(
-            self.unstru_data
-        )
+        self.unstru_tags, self.unstru_cell_types, self.unstru_cells = _get_unstru_cells(self.unstru_data)
         # --------------------------------------------------
+        self.ModelInfo = model_info
         self.ModalProps = modal_props
-        self.EigenVectors = eigen_vectors.to_numpy()[..., :3]
-        self.plot_model_base = PlotModelBase(model_info, dict())
+        self.EigenVectors = eigen_vectors
+        self.plot_model_base = PlotModelBase(model_info, {})
 
         # plotly
         self.pargs = PLOT_ARGS
         self.FIGURE = go.Figure()
 
-    @staticmethod
-    def _set_txt_props(txt, color="blue", weight="bold"):
-        return f'<span style="color:{color}; font-weight:{weight}">{txt}</span>'
+        self.title = {
+            "font": {"family": "courier", "size": self.pargs.title_font_size},
+            "text": f"<b>{PKG_NAME} :: Eigen 3D Viewer</b><br><br>",
+        }
 
-    @staticmethod
-    def _get_plotly_unstru_data(points, unstru_cell_types, unstru_cells, scalars):
-        grid = _VTKElementTriangulator(points, scalars=scalars)
-        for cell_type, cell in zip(unstru_cell_types, unstru_cells):
-            grid.add_cell(cell_type, cell)
-        return grid.get_results()
+    def _get_eigen_points(self, step, alpha):
+        eigen_vec = self.EigenVectors.to_numpy()[..., :3][step]
+        value_ = np.max(np.sqrt(np.sum(eigen_vec**2, axis=1)))
+        alpha_ = self.max_bound_size * self.pargs.scale_factor / value_
+        alpha_ = alpha_ * alpha if alpha else alpha_
+        eigen_points = self.points + eigen_vec * alpha_
+        scalars = np.sqrt(np.sum(eigen_vec**2, axis=1))
+        return eigen_points, scalars, alpha_
 
-    @staticmethod
-    def _get_plotly_line_data(points, line_cells, scalars):
-        return _make_lines_plotly(points, line_cells, scalars=scalars)
+    def _get_bc_points(self, step, scale: float):
+        fixed_node_data = self.ModelInfo["FixedNodalData"]
+        if len(fixed_node_data) > 0:
+            fix_tags = fixed_node_data["nodeTags"].values
+            coords = self.nodal_data.sel({"nodeTags": fix_tags}).to_numpy()
+            eigen_vec = self.EigenVectors.sel({"nodeTags": fix_tags}).to_numpy()
+            vec = eigen_vec[..., :3][step]
+            coords = coords + vec * scale
+        else:
+            coords = []
+        return coords
 
     def _make_eigen_txt(self, step):
         fi = self.ModalProps.loc[:, "eigenFrequency"][step]
         txt = f'<span style="font-weight:bold; font-size:{self.pargs.title_font_size}px">Mode {step + 1}</span>'
         # txt = f"<b>Mode {step + 1}</b>"
-        period_txt = self._set_txt_props(f"{1/fi:.6f}; ", color="blue")
+        period_txt = self._set_txt_props(f"{1 / fi:.6f}; ", color="blue")
         txt += f"<br><b>Period (s):</b> {period_txt}"
         fi_txt = self._set_txt_props(f"{fi:.6f};", color="blue")
-        txt += (
-            f"<b>Frequency (Hz):</b> {fi_txt}"
-        )
+        txt += f"<b>Frequency (Hz):</b> {fi_txt}"
         if not self.show_zaxis:
             txt += "<br><b>Modal participation mass ratios (%)</b><br>"
             mx = self.ModalProps.loc[:, "partiMassRatiosMX"][step]
@@ -95,9 +100,7 @@ class PlotEigenBase:
             rmx = self.ModalProps.loc[:, "partiMassRatiosRMX"][step]
             rmy = self.ModalProps.loc[:, "partiMassRatiosRMY"][step]
             rmz = self.ModalProps.loc[:, "partiMassRatiosRMZ"][step]
-            txt += self._set_txt_props(
-                f"{mx:7.3f} {my:7.3f} {mz:7.3f} {rmx:7.3f} {rmy:7.3f} {rmz:7.3f}", color="blue"
-            )
+            txt += self._set_txt_props(f"{mx:7.3f} {my:7.3f} {mz:7.3f} {rmx:7.3f} {rmy:7.3f} {rmz:7.3f}", color="blue")
             txt += "<br><b>Cumulative modal participation mass ratios (%)</b><br>"
             mx = self.ModalProps.loc[:, "partiMassRatiosCumuMX"][step]
             my = self.ModalProps.loc[:, "partiMassRatiosCumuMY"][step]
@@ -105,13 +108,17 @@ class PlotEigenBase:
             rmx = self.ModalProps.loc[:, "partiMassRatiosCumuRMX"][step]
             rmy = self.ModalProps.loc[:, "partiMassRatiosCumuRMY"][step]
             rmz = self.ModalProps.loc[:, "partiMassRatiosCumuRMZ"][step]
-            txt += self._set_txt_props(
-                f"{mx:7.3f} {my:7.3f} {mz:7.3f} {rmx:7.3f} {rmy:7.3f} {rmz:7.3f}", color="blue"
-            )
-            txt += (
-                f"<br><b>{'X':>7} {'Y':>7} {'Z':>7} {'RX':>7} {'RY':>7} {'RZ':>7}</b>"
-            )
+            txt += self._set_txt_props(f"{mx:7.3f} {my:7.3f} {mz:7.3f} {rmx:7.3f} {rmy:7.3f} {rmz:7.3f}", color="blue")
+            txt += f"<br><b>{'X':>7} {'Y':>7} {'Z':>7} {'RX':>7} {'RY':>7} {'RZ':>7}</b>"
             # f'<span style="color:blue; font-weight:bold;">{"X":>7} {"Y":>7} {"Z":>7} {"RX":>7} {"RY":>7} {"RZ":>7}</span>'
+        return txt
+
+    def _make_eigen_subplots_txt(self, step):
+        f = self.ModalProps.loc[:, "eigenFrequency"]
+        mode = self._set_txt_props(f"{step + 1}", color="#8eab12")
+        period = 1 / f[step]
+        t = self._set_txt_props(f"{period:.3E}") if period < 0.001 else self._set_txt_props(f"{period:.3f}")
+        txt = f"Mode <b>{mode}</b>: T = <b>{t}</b> s"
         return txt
 
     def _create_mesh(
@@ -126,13 +133,15 @@ class PlotEigenBase:
         bc_scale: float = 1.0,
         show_mp_constraint: bool = True,
     ):
-        step = int(round(idx)) - 1
-        eigen_vec = self.EigenVectors[step]
-        value_ = np.max(np.sqrt(np.sum(eigen_vec**2, axis=1)))
-        alpha_ = self.max_bound_size * self.pargs.scale_factor / value_
-        alpha_ = alpha_ * alpha if alpha else alpha_
-        eigen_points = self.points + eigen_vec * alpha_
-        scalars = np.sqrt(np.sum(eigen_vec**2, axis=1))
+        step = round(idx) - 1
+        eigen_points, scalars, alpha_ = self._get_eigen_points(step, alpha)
+
+        if show_origin:
+            self.plot_model_base.plot_model_one_color(
+                plotter,
+                color="gray",
+                style="wireframe",
+            )
 
         if len(self.unstru_data) > 0:
             (
@@ -144,9 +153,7 @@ class PlotEigenBase:
                 veck,
                 face_scalars,
                 face_line_scalars,
-            ) = self._get_plotly_unstru_data(
-                eigen_points, self.unstru_cell_types, self.unstru_cells, scalars
-            )
+            ) = self._get_plotly_unstru_data(eigen_points, self.unstru_cell_types, self.unstru_cells, scalars)
             _plot_unstru_cmap(
                 plotter,
                 face_points,
@@ -176,34 +183,22 @@ class PlotEigenBase:
                 width=self.pargs.line_width,
             )
         if show_bc:
-            self.plot_model_base.plot_bc(plotter, bc_scale)
+            bc_points = self._get_bc_points(step, scale=alpha_)
+            self.plot_model_base.plot_bc(plotter, bc_scale, points_new=bc_points)
         if show_mp_constraint:
             self.plot_model_base.plot_mp_constraint(
                 plotter,
                 points_new=eigen_points,
             )
-        if show_origin:
-            self.plot_model_base.plot_model_one_color(
-                plotter,
-                color="gray",
-                style="wireframe",
-            )
 
     def subplots(self, modei, modej, show_outline, **kargs):
         if modej - modei + 1 > 64:
-            raise ValueError("When subplots True, mode_tag range must < 64 for clarify")
+            raise ValueError("When subplots True, mode_tag range must < 64 for clarify")  # noqa: TRY003
         shape = SHAPE_MAP[modej - modei + 1]
         specs = [[{"is_3d": True} for _ in range(shape[1])] for _ in range(shape[0])]
         subplot_titles = []
-        for i, idx in enumerate(range(modei, modej + 1)):
-            f = self.ModalProps.loc[:, "eigenFrequency"]
-            mode = self._set_txt_props(f"{idx}", color="#8eab12")
-            period = 1 / f[idx - 1]
-            if period < 1e-3:
-                t = self._set_txt_props(f"{period:.3E}")
-            else:
-                t = self._set_txt_props(f"{period:.3f}")
-            txt = f"Mode <b>{mode}</b>: T = <b>{t}</b> s"
+        for i, idx in enumerate(range(modei, modej + 1)):  # noqa: B007
+            txt = self._make_eigen_subplots_txt(idx - 1)
             subplot_titles.append(txt)
         self.FIGURE = make_subplots(
             rows=shape[0],
@@ -224,31 +219,24 @@ class PlotEigenBase:
             self._create_mesh(plotter, idx, coloraxis=f"coloraxis{i + 1}", **kargs)
             self.FIGURE.add_traces(plotter, rows=idxi + 1, cols=idxj + 1)
         if not self.show_zaxis:
-            scene = _get_plotly_dim_scene(mode="2d", show_outline=show_outline)
+            scene = self._get_plotly_dim_scene(mode="2d", show_outline=show_outline)
         else:
-            scene = _get_plotly_dim_scene(mode="3d", show_outline=show_outline)
-        scenes = dict()
-        coloraxiss = dict()
+            scene = self._get_plotly_dim_scene(mode="3d", show_outline=show_outline)
+        scenes = {}
+        coloraxiss = {}
         for k in range(shape[0] * shape[1]):
-            coloraxiss[f"coloraxis{k + 1}"] = dict(
-                showscale=False, colorscale=self.pargs.cmap
-            )
+            coloraxiss[f"coloraxis{k + 1}"] = {"showscale": False, "colorscale": self.pargs.cmap}
             if k >= 1:
                 if not self.show_zaxis:
-                    scenes[f"scene{k + 1}"] = _get_plotly_dim_scene(mode="2d", show_outline=show_outline)
+                    scenes[f"scene{k + 1}"] = self._get_plotly_dim_scene(mode="2d", show_outline=show_outline)
                 else:
-                    scenes[f"scene{k + 1}"] = _get_plotly_dim_scene(mode="3d", show_outline=show_outline)
-        title = dict(
-            font=dict(family="courier", color="black", size=self.pargs.title_font_size),
-            text=f"<b>{PKG_NAME} :: Eigen 3D Viewer</b>",
-        )
+                    scenes[f"scene{k + 1}"] = self._get_plotly_dim_scene(mode="3d", show_outline=show_outline)
         self.FIGURE.update_layout(
-            title=title,
-            font=dict(family=self.pargs.font_family),
+            font={"family": self.pargs.font_family},
             template=self.pargs.theme,
             autosize=True,
             showlegend=False,
-            coloraxis=dict(showscale=False, colorscale=self.pargs.cmap),
+            coloraxis={"showscale": False, "colorscale": self.pargs.cmap},
             scene=scene,
             **scenes,
             **coloraxiss,
@@ -271,47 +259,33 @@ class PlotEigenBase:
         for i, idx in enumerate(range(modei, modej + 1)):
             # txt = "Mode {}: T = {:.3f} s".format(idx, 1 / f[idx - 1])
             txt = self._make_eigen_txt(idx - 1)
-            txt = dict(
-                font=dict(family="courier", color="black", size=self.pargs.font_size),
-                text=txt,
-            )
-            step = dict(
-                method="update",
-                args=[
-                    {"visible": [False] * len(self.FIGURE.data)},
-                    {"title": txt},
-                ],  # layout attribute
-                label=str(idx),
-            )
+            txt = {"font": {"family": "courier", "size": self.pargs.font_size}, "text": txt}
+            step = {
+                "method": "update",
+                "args": [{"visible": [False] * len(self.FIGURE.data)}, {"title": txt}],  # layout attribute
+                "label": str(idx),
+            }
             step["args"][0]["visible"][n_data * i : n_data * (i + 1)] = [True] * n_data
             # Toggle i'th trace to "visible"
             steps.append(step)
         sliders = [
-            dict(
-                active=modej - modei + 1,
-                currentvalue={"prefix": "Mode: "},
-                pad={"t": 50},
-                steps=steps,
-            )
+            {
+                "active": 0,
+                "currentvalue": {"prefix": "Mode: "},
+                "pad": {"t": 50},
+                "steps": steps,
+            }
         ]
         coloraxiss = {}
         for i in range(modej - modei + 1):
-            coloraxiss[f"coloraxis{i + 1}"] = dict(
-                colorscale=self.pargs.cmap,
+            coloraxiss[f"coloraxis{i + 1}"] = {
+                "colorscale": self.pargs.cmap,
                 # cmin=cmins[i],
                 # cmax=cmaxs[i],
-                showscale=False,
-                colorbar=dict(tickfont=dict(size=15)),
-            )
-        title = dict(
-            font=dict(family="courier", color="black", size=self.pargs.title_font_size),
-            text=f"<b>{PKG_NAME} :: Eigen 3D Viewer</b>",
-        )
-        self.FIGURE.update_layout(
-            title=title,
-            sliders=sliders,
-            **coloraxiss,
-        )
+                "showscale": False,
+                "colorbar": {"tickfont": {"size": self.pargs.font_size - 2}},
+            }
+        self.FIGURE.update_layout(sliders=sliders, **coloraxiss)
 
         return self.FIGURE
 
@@ -319,91 +293,32 @@ class PlotEigenBase:
         self,
         mode_tag: int = 1,
         n_cycle: int = 5,
-        framerate: int = 3,
+        framerate: int = 1,
         alpha: float = 1.0,
         **kargs,
     ):
         alphas = [0.0] + [alpha, -alpha] * n_cycle
-        nb_frames = len(alphas)
-        times = int(nb_frames / framerate)
-        # -----------------------------------------------------------------------------
+        duration = 1000 / framerate  # convert to milliseconds
+        # ---------------------frames--------------------------------------------------------
         # start plot
         frames = []
         for k, alpha in enumerate(alphas):
             plotter = []
-            self._create_mesh(
-                plotter, mode_tag, alpha=alpha, coloraxis="coloraxis", **kargs
-            )
+            self._create_mesh(plotter, mode_tag, alpha=alpha, coloraxis="coloraxis", **kargs)
             frames.append(go.Frame(data=plotter, name="step:" + str(k + 1)))
-        self.FIGURE = go.Figure(frames=frames)
         # Add data to be displayed before animation starts
         plotter0 = []
-        self._create_mesh(
-            plotter0, mode_tag, alpha=alpha, coloraxis="coloraxis", **kargs
-        )
-        self.FIGURE.add_traces(plotter0)
+        self._create_mesh(plotter0, mode_tag, alpha=alpha, coloraxis="coloraxis", **kargs)
 
-        def frame_args(duration):
-            return {
-                "frame": {"duration": duration},
-                "mode": "immediate",
-                "fromcurrent": True,
-                "transition": {"duration": duration, "easing": "linear"},
-            }
+        self.FIGURE = go.Figure(data=plotter0, frames=frames)
 
-        sliders = [
-            {
-                "pad": {"b": 10, "t": 60},
-                "len": 0.9,
-                "x": 0.1,
-                "y": 0,
-                "steps": [
-                    {
-                        "args": [[f.name], frame_args(0)],
-                        "label": "step:" + str(k + 1),
-                        "method": "animate",
-                    }
-                    for k, f in enumerate(self.FIGURE.frames)
-                ],
-            }
-        ]
         # Layout
-        f = self.ModalProps.loc[:, "eigenFrequency"][mode_tag - 1]
-        txt = "<br> Mode <b>{}</b>: T = <b>{:.3f}</b> s".format(mode_tag, 1 / f)
+        txt = self._make_eigen_txt(mode_tag - 1)
+        self.title["text"] += txt
         self.FIGURE.update_layout(
-            title=dict(
-                font=dict(
-                    family="courier", color="black", size=self.pargs.title_font_size
-                ),
-                text=f"<b>{PKG_NAME} :: Eigen 3D Viewer</b>" + txt,
-            ),
-            coloraxis=dict(
-                colorscale=self.pargs.cmap,
-                showscale=False,
-            ),
-            updatemenus=[
-                {
-                    "buttons": [
-                        {
-                            "args": [None, frame_args(times)],
-                            "label": "&#9654;",  # play symbol
-                            "method": "animate",
-                        },
-                        {
-                            "args": [[None], frame_args(0)],
-                            "label": "&#9724;",  # pause symbol
-                            "method": "animate",
-                        },
-                    ],
-                    "direction": "left",
-                    "pad": {"r": 10, "t": 70},
-                    "type": "buttons",
-                    "x": 0.1,
-                    "y": 0,
-                }
-            ],
-            sliders=sliders,
+            coloraxis={"colorscale": self.pargs.cmap, "showscale": False},
         )
+        self._update_antimate_layout(duration=duration, is_response_step=False)
 
     def plot_props_table(self, modei, modej):
         df = self.ModalProps.to_pandas()[modei - 1 : modej]
@@ -411,34 +326,35 @@ class PlotEigenBase:
         fig = go.Figure(
             data=[
                 go.Table(
-                    header=dict(values=["modeTags"] + list(df.columns)),
-                    cells=dict(
-                        values=[df.index] + [df[col].tolist() for col in df.columns],
-                        format=[""] + [".3E"] * len(df.columns),
-                    ),
+                    header={"values": ["modeTags", *list(df.columns)]},
+                    cells={
+                        "values": [df.index] + [df[col].tolist() for col in df.columns],
+                        "format": [""] + [".3E"] * len(df.columns),
+                    },
                 )
             ]
         )
         return fig
 
-    def update_fig(self, show_outline: bool = False):
-        if not self.show_zaxis:
-            scene = _get_plotly_dim_scene(mode="2d", show_outline=show_outline)
-        else:  # for 3D camera
-            scene = _get_plotly_dim_scene(mode="3d", show_outline=show_outline)
-        self.FIGURE.update_layout(
-            template=self.pargs.theme,
-            autosize=True,
-            showlegend=False,
-            scene=scene,
-            font=dict(family=self.pargs.font_family),
-        )
-        return self.FIGURE
+
+class PlotBucklingBase(PlotEigenBase):
+    def __init__(self, model_info, eigen_values, eigen_vectors):
+        super().__init__(model_info, eigen_values, eigen_vectors)
+
+    def _make_eigen_txt(self, step):
+        mode = self._set_txt_props(f"{step + 1}", color="#8eab12")
+        fi = self.ModalProps.isel(modeTags=step)
+        fi = self._set_txt_props(f"{fi:.3E}") if fi < 0.001 else self._set_txt_props(f"{fi:.3f}")
+        txt = f"Mode <b>{mode}</b>:<br>k = <b>{fi}</b>"
+        return txt
+
+    def _make_eigen_subplots_txt(self, step):
+        return self._make_eigen_txt(step)
 
 
 def plot_eigen(
-    mode_tags: Union[List, Tuple, int],
-    odb_tag: Union[int, str] = None,
+    mode_tags: Union[list, tuple, int],
+    odb_tag: Optional[Union[int, str]] = None,
     subplots: bool = False,
     scale: float = 1.0,
     show_outline: bool = False,
@@ -448,7 +364,8 @@ def plot_eigen(
     bc_scale: float = 1.0,
     show_mp_constraint: bool = True,
     solver: str = "-genBandArpack",
-):
+    mode: str = "eigen",
+) -> go.Figure:
     """Modal visualization.
 
     Parameters
@@ -479,6 +396,11 @@ def plot_eigen(
         Whether to show multipoint (MP) constraint.
     solver : str, optional,
        OpenSees' eigenvalue analysis solver, by default "-genBandArpack".
+    mode: str, default: eigen
+        The type of modal analysis, can be "eigen" or "buckling".
+        If "eigen", it will plot the eigenvalues and eigenvectors.
+        If "buckling", it will plot the buckling factors and modes.
+        Added in v0.1.15.
 
     Returns
     -------
@@ -489,13 +411,19 @@ def plot_eigen(
     """
     if isinstance(mode_tags, int):
         mode_tags = [1, mode_tags]
-    resave = True if odb_tag is None else False
-    odb_tag = "Auto" if odb_tag is None else odb_tag
-    modalProps, eigenvectors, MODEL_INFO = load_eigen_data(
-        odb_tag=odb_tag, mode_tag=mode_tags[-1], solver=solver, resave=resave
-    )
     modei, modej = int(mode_tags[0]), int(mode_tags[1])
-    plotbase = PlotEigenBase(MODEL_INFO, modalProps, eigenvectors)
+    if mode.lower() == "eigen":
+        resave = odb_tag is None
+        odb_tag = "Auto" if odb_tag is None else odb_tag
+        modalProps, eigenvectors, MODEL_INFO = load_eigen_data(
+            odb_tag=odb_tag, mode_tag=mode_tags[-1], solver=solver, resave=resave
+        )
+        plotbase = PlotEigenBase(MODEL_INFO, modalProps, eigenvectors)
+    elif mode.lower() == "buckling":
+        modalProps, eigenvectors, MODEL_INFO = load_linear_buckling_data(odb_tag=odb_tag)
+        plotbase = PlotBucklingBase(MODEL_INFO, modalProps, eigenvectors)
+    else:
+        raise ValueError(f"Unsupported mode: {mode}. Use 'eigen' or 'buckling'.")  # noqa: TRY003
     if subplots:
         plotbase.subplots(
             modei,
@@ -526,7 +454,7 @@ def plot_eigen(
 
 def plot_eigen_animation(
     mode_tag: int,
-    odb_tag: Union[int, str] = None,
+    odb_tag: Optional[Union[int, str]] = None,
     n_cycle: int = 5,
     framerate: int = 3,
     scale: float = 1.0,
@@ -537,7 +465,8 @@ def plot_eigen_animation(
     show_bc: bool = True,
     bc_scale: float = 1.0,
     show_mp_constraint: bool = True,
-):
+    mode: str = "eigen",
+) -> go.Figure:
     """Modal animation visualization.
 
     Parameters
@@ -569,6 +498,11 @@ def plot_eigen_animation(
         Scale the size of boundary support display.
     show_mp_constraint: bool, default: True
         Whether to show multipoint (MP) constraint.
+    mode: str, default: eigen
+        The type of modal analysis, can be "eigen" or "buckling".
+        If "eigen", it will plot the eigenvalues and eigenvectors.
+        If "buckling", it will plot the buckling factors and modes.
+        Added in v0.1.15.
 
     Returns
     -------
@@ -577,11 +511,17 @@ def plot_eigen_animation(
         You can also use `fig.write_html("path/to/file.html")` to save as an HTML file, see
         `Interactive HTML Export in Python <https://plotly.com/python/interactive-html-export/>`_
     """
-    resave = True if odb_tag is None else False
-    modalProps, eigenvectors, MODEL_INFO = load_eigen_data(
-        odb_tag=odb_tag, mode_tag=mode_tag, solver=solver, resave=resave
-    )
-    plotbase = PlotEigenBase(MODEL_INFO, modalProps, eigenvectors)
+    if mode.lower() == "eigen":
+        resave = odb_tag is None
+        modalProps, eigenvectors, MODEL_INFO = load_eigen_data(
+            odb_tag=odb_tag, mode_tag=mode_tag, solver=solver, resave=resave
+        )
+        plotbase = PlotEigenBase(MODEL_INFO, modalProps, eigenvectors)
+    elif mode.lower() == "buckling":
+        modalProps, eigenvectors, MODEL_INFO = load_linear_buckling_data(odb_tag=odb_tag)
+        plotbase = PlotBucklingBase(MODEL_INFO, modalProps, eigenvectors)
+    else:
+        raise ValueError(f"Unsupported mode: {mode}. Use 'eigen' or 'buckling'.")  # noqa: TRY003
     plotbase.plot_anim(
         mode_tag,
         n_cycle=n_cycle,
@@ -597,10 +537,10 @@ def plot_eigen_animation(
 
 
 def plot_eigen_table(
-    mode_tags: Union[List, Tuple, int],
+    mode_tags: Union[list, tuple, int],
     odb_tag: Union[int, str] = 1,
     solver: str = "-genBandArpack",
-):
+) -> go.Figure:
     """Plot Modal Properties Table.
 
     Parameters
@@ -614,9 +554,12 @@ def plot_eigen_table(
 
     Returns
     -------
-    None
+    fig: `plotly.graph_objects.Figure <https://plotly.com/python-api-reference/generated/plotly.graph_objects.Figure.html>`_
+        You can use `fig.show()` to display,
+        You can also use `fig.write_html("path/to/file.html")` to save as an HTML file, see
+        `Interactive HTML Export in Python <https://plotly.com/python/interactive-html-export/>`_
     """
-    resave = True if odb_tag is None else False
+    resave = odb_tag is None
     if isinstance(mode_tags, int):
         mode_tags = [1, mode_tags]
     modalProps, eigenvectors, MODEL_INFO = load_eigen_data(

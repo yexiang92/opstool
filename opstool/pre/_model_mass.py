@@ -1,7 +1,8 @@
+from collections import defaultdict
+from typing import Optional, Union
+
 import numpy as np
 import openseespy.opensees as ops
-from typing import Union
-from collections import defaultdict
 
 
 class ModelMass:
@@ -62,7 +63,7 @@ class ModelMass:
         for etag, rho, area in zip(ele_tags, rhos, areas):
             node_tags = ops.eleNodes(int(etag))
             if len(node_tags) != 2:
-                raise ValueError(f"Element {etag} node number must be 2!")
+                raise ValueError(f"Element {etag} node number must be 2!")  # noqa: TRY003
             ntag1, ntag2 = node_tags
             coord1 = np.array(ops.nodeCoord(ntag1))
             coord2 = np.array(ops.nodeCoord(ntag2))
@@ -71,9 +72,7 @@ class ModelMass:
             node_mass = {ntag1: mass / 2, ntag2: mass / 2}
             self._add_node_mass(node_mass)
 
-    def add_mass_from_surf(
-        self, ele_tags: Union[list, int], rho: Union[list, float], d: Union[list, float]
-    ):
+    def add_mass_from_surf(self, ele_tags: Union[list, int], rho: Union[list, float], d: Union[list, float]):
         """Add mass from a planar element, including shell.
 
         Parameters
@@ -106,7 +105,7 @@ class ModelMass:
                 points.append(ops.nodeCoord(ntag))
             area = _PolyArea(points).area
             mass = rho * area * d
-            node_mass = dict()
+            node_mass = {}
             for ntag in node_tags:
                 node_mass[ntag] = mass / node_num
             self._add_node_mass(node_mass)
@@ -153,9 +152,9 @@ class ModelMass:
                     points.append(ops.nodeCoord(ntag))
                 vol = _calculate_tetrahedron_volume(points)
             else:
-                raise ValueError(f"Ele {etag} is not a valid brick!")
+                raise ValueError(f"Ele {etag} is not a valid brick!")  # noqa: TRY003
             mass = rho * vol
-            node_mass = dict()
+            node_mass = {}
             for ntag in node_tags:
                 node_mass[ntag] = mass / node_num
             self._add_node_mass(node_mass)
@@ -223,9 +222,7 @@ class ModelMass:
             elif dim == 3 and dof == 6:
                 ops.mass(ntag, mass, mass, mass, 0.0, 0.0, 0.0)
 
-    def generate_ops_gravity_load(
-        self, direction: str, factor: float = -9.81, exclude_nodes: list = None
-    ):
+    def generate_ops_gravity_load(self, direction: str, factor: float = -9.81, exclude_nodes: Optional[list] = None):
         """
         Call the OpenSeesPy ``load`` command to generate a nodal gravity load.
 
@@ -249,32 +246,28 @@ class ModelMass:
         """
         direction = direction.upper()
         if exclude_nodes is not None:
-            node_mass = {
-                ntag: mass
-                for ntag, mass in self.node_mass.items()
-                if ntag not in exclude_nodes
-            }
+            node_mass = {ntag: mass for ntag, mass in self.node_mass.items() if ntag not in exclude_nodes}
         else:
             node_mass = self.node_mass
-        load_fact_3d6 = dict(
-            Z=np.array([0.0, 0.0, factor, 0.0, 0.0, 0.0]),
-            Y=np.array([0.0, factor, 0.0, 0.0, 0.0, 0.0]),
-            X=np.array([factor, 0.0, 0.0, 0.0, 0.0, 0.0]),
-        )
-        load_fact_3d3 = dict(
-            Z=np.array([0.0, 0.0, factor]),
-            Y=np.array([0.0, factor, 0]),
-            X=np.array([factor, 0.0, 0.0]),
-        )
-        load_fact_2d3 = dict(
-            Y=np.array([0.0, factor, 0.0]),
-            X=np.array([factor, 0.0, 0.0]),
-        )
-        load_fact_2d2 = dict(
-            Y=np.array([0.0, factor]),
-            X=np.array([factor, 0.0]),
-        )
-        load_fact_1d = dict(X=np.array([factor]))
+        load_fact_3d6 = {
+            "Z": np.array([0.0, 0.0, factor, 0.0, 0.0, 0.0]),
+            "Y": np.array([0.0, factor, 0.0, 0.0, 0.0, 0.0]),
+            "X": np.array([factor, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        }
+        load_fact_3d3 = {
+            "Z": np.array([0.0, 0.0, factor]),
+            "Y": np.array([0.0, factor, 0]),
+            "X": np.array([factor, 0.0, 0.0]),
+        }
+        load_fact_2d3 = {
+            "Y": np.array([0.0, factor, 0.0]),
+            "X": np.array([factor, 0.0, 0.0]),
+        }
+        load_fact_2d2 = {
+            "Y": np.array([0.0, factor]),
+            "X": np.array([factor, 0.0]),
+        }
+        load_fact_1d = {"X": np.array([factor])}
         load_fact = {
             (3, 6): load_fact_3d6,
             (3, 3): load_fact_3d3,
@@ -288,7 +281,7 @@ class ModelMass:
             loadValues = list(mass * load_fact[(dim, dof)][direction])
             ops.load(ntag, *loadValues)
 
-    def get_node_mass(self, node_tags: list = None):
+    def get_node_mass(self, node_tags: Optional[list] = None):
         """Get nodal mass.
 
         Parameters
@@ -304,14 +297,13 @@ class ModelMass:
         if node_tags is None:
             return dict(self.node_mass)
         else:
-            node_mass = dict()
+            node_mass = {}
             for ntag in node_tags:
                 node_mass[ntag] = self.node_mass[ntag]
             return node_mass
 
 
 class _PolyArea:
-
     def __init__(self, points: list):
         if len(points[0]) == 2:
             for i in range(len(points)):
@@ -321,16 +313,8 @@ class _PolyArea:
     @staticmethod
     def det(a):
         # determinant of matrix a
-        temp = (
-            a[0][0] * a[1][1] * a[2][2]
-            + a[0][1] * a[1][2] * a[2][0]
-            + a[0][2] * a[1][0] * a[2][1]
-        )
-        temp += (
-            -a[0][2] * a[1][1] * a[2][0]
-            - a[0][1] * a[1][0] * a[2][2]
-            - a[0][0] * a[1][2] * a[2][1]
-        )
+        temp = a[0][0] * a[1][1] * a[2][2] + a[0][1] * a[1][2] * a[2][0] + a[0][2] * a[1][0] * a[2][1]
+        temp += -a[0][2] * a[1][1] * a[2][0] - a[0][1] * a[1][0] * a[2][2] - a[0][0] * a[1][2] * a[2][1]
         return temp
 
     def unit_normal(self, a, b, c):
@@ -362,45 +346,38 @@ class _PolyArea:
         total = [0, 0, 0]
         for i in range(len(self.points)):
             vi1 = self.points[i]
-            if i is len(self.points) - 1:
-                vi2 = self.points[0]
-            else:
-                vi2 = self.points[i + 1]
+            vi2 = self.points[0] if i is len(self.points) - 1 else self.points[i + 1]
             prod = self.cross(vi1, vi2)
             total[0] += prod[0]
             total[1] += prod[1]
             total[2] += prod[2]
-        result = self.dot(
-            total, self.unit_normal(self.points[0], self.points[1], self.points[2])
-        )
+        result = self.dot(total, self.unit_normal(self.points[0], self.points[1], self.points[2]))
         return abs(result / 2)
 
 
 def _calculate_tetrahedron_volume(vertices: list):
     vertices = np.array(vertices)
     if vertices.shape != (4, 3):
-        raise ValueError("shape must be (4, 3)!")
+        raise ValueError("shape must be (4, 3)!")  # noqa: TRY003
 
     # Jacobian matrix
-    B = np.array(
+    B = np.array([
         [
-            [
-                vertices[1, 0] - vertices[0, 0],
-                vertices[2, 0] - vertices[0, 0],
-                vertices[3, 0] - vertices[0, 0],
-            ],
-            [
-                vertices[1, 1] - vertices[0, 1],
-                vertices[2, 1] - vertices[0, 1],
-                vertices[3, 1] - vertices[0, 1],
-            ],
-            [
-                vertices[1, 2] - vertices[0, 2],
-                vertices[2, 2] - vertices[0, 2],
-                vertices[3, 2] - vertices[0, 2],
-            ],
-        ]
-    )
+            vertices[1, 0] - vertices[0, 0],
+            vertices[2, 0] - vertices[0, 0],
+            vertices[3, 0] - vertices[0, 0],
+        ],
+        [
+            vertices[1, 1] - vertices[0, 1],
+            vertices[2, 1] - vertices[0, 1],
+            vertices[3, 1] - vertices[0, 1],
+        ],
+        [
+            vertices[1, 2] - vertices[0, 2],
+            vertices[2, 2] - vertices[0, 2],
+            vertices[3, 2] - vertices[0, 2],
+        ],
+    ])
     det_B = np.linalg.det(B)
     volume = np.abs(det_B) / 6.0
 
@@ -410,28 +387,26 @@ def _calculate_tetrahedron_volume(vertices: list):
 def _calculate_hexahedron_volume(vertices):
     vertices = np.array(vertices)
     if vertices.shape != (8, 3):
-        raise ValueError("The shape of the input array must be (8, 3).")
+        raise ValueError("The shape of the input array must be (8, 3).")  # noqa: TRY003
 
     # Calculate the Jacobian matrix B
-    B = np.array(
+    B = np.array([
         [
-            [
-                vertices[1, 0] - vertices[0, 0],
-                vertices[2, 0] - vertices[0, 0],
-                vertices[4, 0] - vertices[0, 0],
-            ],
-            [
-                vertices[1, 1] - vertices[0, 1],
-                vertices[2, 1] - vertices[0, 1],
-                vertices[4, 1] - vertices[0, 1],
-            ],
-            [
-                vertices[1, 2] - vertices[0, 2],
-                vertices[2, 2] - vertices[0, 2],
-                vertices[4, 2] - vertices[0, 2],
-            ],
-        ]
-    )
+            vertices[1, 0] - vertices[0, 0],
+            vertices[2, 0] - vertices[0, 0],
+            vertices[4, 0] - vertices[0, 0],
+        ],
+        [
+            vertices[1, 1] - vertices[0, 1],
+            vertices[2, 1] - vertices[0, 1],
+            vertices[4, 1] - vertices[0, 1],
+        ],
+        [
+            vertices[1, 2] - vertices[0, 2],
+            vertices[2, 2] - vertices[0, 2],
+            vertices[4, 2] - vertices[0, 2],
+        ],
+    ])
 
     # Calculate the determinant of the Jacobian matrix
     det_B = np.linalg.det(B)

@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
+
 import numpy as np
 
 
 class ResponseBase(ABC):
-
     @abstractmethod
     def initialize(self):
         """initialize response data."""
@@ -48,7 +48,7 @@ def _expand_to_uniform_array(array_list, dtype=None):
     max_shape = np.max([array.shape for array in array_list], axis=0)
 
     # Create a result array filled with NaN
-    result = np.full((len(array_list),) + tuple(max_shape), np.nan)
+    result = np.full((len(array_list), *tuple(max_shape)), np.nan)
 
     # Copy data into the result array
     for i, arr in enumerate(array_list):

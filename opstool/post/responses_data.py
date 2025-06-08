@@ -1,40 +1,32 @@
-from typing import Union
 from types import SimpleNamespace
+from typing import Optional, Union
 
 import numpy as np
 import openseespy.opensees as ops
 import xarray as xr
 
+from ..utils import CONFIGS, get_random_color
 from ._get_response import (
-    ModelInfoStepData,
-    NodalRespStepData,
-    TrussRespStepData,
-    FrameRespStepData,
-    LinkRespStepData,
-    FiberSecRespStepData,
-    ShellRespStepData,
-    PlaneRespStepData,
     BrickRespStepData,
     ContactRespStepData,
-    SensitivityRespStepData
+    FiberSecRespStepData,
+    FrameRespStepData,
+    LinkRespStepData,
+    ModelInfoStepData,
+    NodalRespStepData,
+    PlaneRespStepData,
+    SensitivityRespStepData,
+    ShellRespStepData,
+    TrussRespStepData,
 )
+from ._unit_postprocess import get_post_unit_multiplier, get_post_unit_symbol
 from .eigen_data import save_eigen_data
 from .model_data import save_model_data
-from ._unit_postprocess import get_post_unit_multiplier, get_post_unit_symbol
-
-from ..utils import get_random_color, CONSTANTS
-
-RESULTS_DIR = CONSTANTS.get_output_dir()
-CONSOLE = CONSTANTS.get_console()
-PKG_PREFIX = CONSTANTS.get_pkg_prefix()
-RESP_FILE_NAME = CONSTANTS.get_resp_filename()
-MODEL_FILE_NAME = CONSTANTS.get_model_filename()
-
 
 POST_ARGS = SimpleNamespace(
     elastic_frame_sec_points=7,
     compute_mechanical_measures=True,
-    dtype=dict(int=np.int32, float=np.float32),
+    dtype={"int": np.int32, "float": np.float32},
     # ------------------------------
     save_nodal_resp=True,
     save_frame_resp=True,
@@ -58,8 +50,8 @@ POST_ARGS = SimpleNamespace(
     contact_tags=None,
     sensitivity_para_tags=None,
     # -----------------------------------
-    unit_factors = None,
-    unit_symbols = None
+    unit_factors=None,
+    unit_symbols=None,
 )
 
 
@@ -146,18 +138,13 @@ class CreateODB:
                 Otherwise, unexpected behavior may occur.
     """
 
-    def __init__(
-            self,
-            odb_tag: Union[int, str] = 1,
-            model_update: bool = False,
-            **kwargs
-    ):
+    def __init__(self, odb_tag: Union[int, str] = 1, model_update: bool = False, **kwargs):
         self._odb_tag = odb_tag
         self._model_update = model_update
 
         for key, value in kwargs.items():
             if key not in list(vars(POST_ARGS).keys()):
-                raise KeyError(f"Incorrect parameter {key}, should be one of {list(vars(POST_ARGS).keys())}!")
+                raise KeyError(f"Incorrect parameter {key}, should be one of {list(vars(POST_ARGS).keys())}!")  # noqa: TRY003
             else:
                 setattr(POST_ARGS, key, value)
 
@@ -197,7 +184,7 @@ class CreateODB:
             if not isinstance(self._fiber_ele_tags, str):
                 self._fiber_ele_tags = [int(tag) for tag in np.atleast_1d(self._fiber_ele_tags)]
             else:
-                if not self._fiber_ele_tags.lower() == "all":
+                if self._fiber_ele_tags.lower() != "all":
                     self._fiber_ele_tags = None
         if self._plane_tags is not None:
             self._plane_tags = [int(tag) for tag in np.atleast_1d(self._plane_tags)]
@@ -237,9 +224,17 @@ class CreateODB:
 
     def _get_resp(self):
         output = [
-            self._ModelInfo, self._NodalResp, self._FrameResp, self._TrussResp,
-            self._LinkResp, self._ShellResp, self._FiberSecResp,
-            self._PlaneResp, self._BrickResp, self._ContactResp, self._SensitivityResp
+            self._ModelInfo,
+            self._NodalResp,
+            self._FrameResp,
+            self._TrussResp,
+            self._LinkResp,
+            self._ShellResp,
+            self._FiberSecResp,
+            self._PlaneResp,
+            self._BrickResp,
+            self._ContactResp,
+            self._SensitivityResp,
         ]
         return output
 
@@ -250,25 +245,15 @@ class CreateODB:
             self._ModelInfo.add_data_one_step()
 
     def _set_node_resp(self):
-        if self._node_tags is not None:
-            node_tags = self._node_tags
-        else:
-            node_tags = self._ModelInfo.get_current_node_tags()
+        node_tags = self._node_tags if self._node_tags is not None else self._ModelInfo.get_current_node_tags()
         if len(node_tags) > 0 and self._save_nodal_resp:
             if self._NodalResp is None:
-                self._NodalResp = NodalRespStepData(
-                    node_tags,
-                    model_update=self._model_update,
-                    dtype=POST_ARGS.dtype
-                )
+                self._NodalResp = NodalRespStepData(node_tags, model_update=self._model_update, dtype=POST_ARGS.dtype)
             else:
                 self._NodalResp.add_data_one_step(node_tags)
 
     def _set_frame_resp(self):
-        if self._frame_tags is not None:
-            frame_tags = self._frame_tags
-        else:
-            frame_tags = self._ModelInfo.get_current_frame_tags()
+        frame_tags = self._frame_tags if self._frame_tags is not None else self._ModelInfo.get_current_frame_tags()
         frame_load_data = self._ModelInfo.get_current_frame_load_data()
         if len(frame_tags) > 0 and self._save_frame_resp:
             if self._FrameResp is None:
@@ -277,94 +262,64 @@ class CreateODB:
                     frame_load_data,
                     elastic_frame_sec_points=POST_ARGS.elastic_frame_sec_points,
                     model_update=self._model_update,
-                    dtype=POST_ARGS.dtype
+                    dtype=POST_ARGS.dtype,
                 )
             else:
                 self._FrameResp.add_data_one_step(frame_tags, frame_load_data)
 
     def _set_truss_resp(self):
-        if self._truss_tags is not None:
-            truss_tags = self._truss_tags
-        else:
-            truss_tags = self._ModelInfo.get_current_truss_tags()
+        truss_tags = self._truss_tags if self._truss_tags is not None else self._ModelInfo.get_current_truss_tags()
         if len(truss_tags) > 0 and self._save_truss_resp:
             if self._TrussResp is None:
-                self._TrussResp = TrussRespStepData(
-                    truss_tags,
-                    model_update=self._model_update,
-                    dtype=POST_ARGS.dtype
-                )
+                self._TrussResp = TrussRespStepData(truss_tags, model_update=self._model_update, dtype=POST_ARGS.dtype)
             else:
                 self._TrussResp.add_data_one_step(truss_tags)
 
     def _set_link_resp(self):
-        if self._link_tags is not None:
-            link_tags = self._link_tags
-        else:
-            link_tags = self._ModelInfo.get_current_link_tags()
+        link_tags = self._link_tags if self._link_tags is not None else self._ModelInfo.get_current_link_tags()
         if len(link_tags) > 0 and self._save_link_resp:
             if self._LinkResp is None:
-                self._LinkResp = LinkRespStepData(
-                    link_tags,
-                    model_update=self._model_update,
-                    dtype=POST_ARGS.dtype
-                )
+                self._LinkResp = LinkRespStepData(link_tags, model_update=self._model_update, dtype=POST_ARGS.dtype)
             else:
                 self._LinkResp.add_data_one_step(link_tags)
 
     def _set_shell_resp(self):
-        if self._shell_tags is not None:
-            shell_tags = self._shell_tags
-        else:
-            shell_tags = self._ModelInfo.get_current_shell_tags()
+        shell_tags = self._shell_tags if self._shell_tags is not None else self._ModelInfo.get_current_shell_tags()
         if len(shell_tags) > 0 and self._save_shell_resp:
             if self._ShellResp is None:
-                self._ShellResp = ShellRespStepData(
-                    shell_tags,
-                    model_update=self._model_update,
-                    dtype=POST_ARGS.dtype
-                )
+                self._ShellResp = ShellRespStepData(shell_tags, model_update=self._model_update, dtype=POST_ARGS.dtype)
             else:
                 self._ShellResp.add_data_one_step(shell_tags)
 
     def _set_fiber_sec_resp(self):
         if self._fiber_ele_tags is not None and self._save_fiber_sec_resp:
             if self._FiberSecResp is None:
-                self._FiberSecResp = FiberSecRespStepData(
-                    self._fiber_ele_tags,
-                    dtype=POST_ARGS.dtype
-                )
+                self._FiberSecResp = FiberSecRespStepData(self._fiber_ele_tags, dtype=POST_ARGS.dtype)
             else:
                 self._FiberSecResp.add_data_one_step()
 
     def _set_plane_resp(self):
-        if self._plane_tags is not None:
-            plane_tags = self._plane_tags
-        else:
-            plane_tags = self._ModelInfo.get_current_plane_tags()
+        plane_tags = self._plane_tags if self._plane_tags is not None else self._ModelInfo.get_current_plane_tags()
         if len(plane_tags) > 0 and self._save_plane_resp:
             if self._PlaneResp is None:
                 self._PlaneResp = PlaneRespStepData(
                     plane_tags,
                     compute_measures=POST_ARGS.compute_mechanical_measures,
                     model_update=self._model_update,
-                    dtype=POST_ARGS.dtype
+                    dtype=POST_ARGS.dtype,
                 )
             else:
                 self._PlaneResp.add_data_one_step(plane_tags)
 
     def _set_brick_resp(self):
-        if self._brick_tags is not None:
-            brick_tags = self._brick_tags
-        else:
-            brick_tags = self._ModelInfo.get_current_brick_tags()
+        brick_tags = self._brick_tags if self._brick_tags is not None else self._ModelInfo.get_current_brick_tags()
         if len(brick_tags) > 0 and self._save_brick_resp:
             if self._BrickResp is None:
                 self._BrickResp = BrickRespStepData(
                     brick_tags,
                     compute_measures=POST_ARGS.compute_mechanical_measures,
                     model_update=self._model_update,
-                    dtype=POST_ARGS.dtype
+                    dtype=POST_ARGS.dtype,
                 )
             else:
                 self._BrickResp.add_data_one_step(brick_tags)
@@ -377,22 +332,14 @@ class CreateODB:
         if len(contact_tags) > 0 and self._save_contact_resp:
             if self._ContactResp is None:
                 self._ContactResp = ContactRespStepData(
-                    contact_tags,
-                    model_update=self._model_update,
-                    dtype=POST_ARGS.dtype
+                    contact_tags, model_update=self._model_update, dtype=POST_ARGS.dtype
                 )
             else:
                 self._ContactResp.add_data_one_step(contact_tags)
 
     def _set_sensitivity_resp(self):
-        if self._sensitivity_para_tags is not None:
-            sens_para_tags = self._sensitivity_para_tags
-        else:
-            sens_para_tags = ops.getParamTags()
-        if self._node_tags is not None:
-            node_tags = self._node_tags
-        else:
-            node_tags = self._ModelInfo.get_current_node_tags()
+        sens_para_tags = self._sensitivity_para_tags if self._sensitivity_para_tags is not None else ops.getParamTags()
+        node_tags = self._node_tags if self._node_tags is not None else self._ModelInfo.get_current_node_tags()
         if len(node_tags) > 0 and len(sens_para_tags) > 0 and self._save_sensitivity_resp:
             if self._SensitivityResp is None:
                 self._SensitivityResp = SensitivityRespStepData(
@@ -400,14 +347,13 @@ class CreateODB:
                     ele_tags=None,
                     sens_para_tags=sens_para_tags,
                     model_update=self._model_update,
-                    dtype=POST_ARGS.dtype
+                    dtype=POST_ARGS.dtype,
                 )
             else:
                 self._SensitivityResp.add_data_one_step(node_tags=node_tags, sens_para_tags=sens_para_tags)
 
     def reset(self):
-        """Reset the ODB model.
-        """
+        """Reset the ODB model."""
         for resp in self._get_resp():
             if resp is not None:
                 resp.reset()
@@ -420,14 +366,15 @@ class CreateODB:
         print_info: bool, optional
             print information, by default, False
         """
+        CONSOLE = CONFIGS.get_console()
+        PKG_PREFIX = CONFIGS.get_pkg_prefix()
+
         self._set_resp()
 
         if print_info:
             time = ops.getTime()
             color = get_random_color()
-            CONSOLE.print(
-                f"{PKG_PREFIX} The responses data at time [bold {color}]{time:.4f}[/] has been fetched!"
-            )
+            CONSOLE.print(f"{PKG_PREFIX} The responses data at time [bold {color}]{time:.4f}[/] has been fetched!")
 
     def save_response(self, zlib: bool = False):
         """
@@ -440,6 +387,11 @@ class CreateODB:
             which is useful when your result files are expected to be large,
             especially if model updating is turned on.
         """
+        RESULTS_DIR = CONFIGS.get_output_dir()
+        CONSOLE = CONFIGS.get_console()
+        PKG_PREFIX = CONFIGS.get_pkg_prefix()
+        RESP_FILE_NAME = CONFIGS.get_resp_filename()
+
         filename = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{self._odb_tag}.nc"
         with xr.DataTree(name=f"{RESP_FILE_NAME}") as dt:
             for resp in self._get_resp():
@@ -450,24 +402,14 @@ class CreateODB:
                 encoding = {}
                 for path, node in dt.items():
                     if path == "ModelInfo":
-                        for key, value in node.items():
+                        for key, _value in node.items():
                             encoding[f"/{path}/{key}"] = {
-                                key: {
-                                    "_FillValue": -9999,
-                                    "zlib": True,
-                                    "complevel": 5,
-                                    "dtype": "float32"
-                                }
+                                key: {"_FillValue": -9999, "zlib": True, "complevel": 5, "dtype": "float32"}
                             }
                     else:
-                        for key, value in node.items():
+                        for key, _value in node.items():
                             encoding[f"/{path}"] = {
-                                key: {
-                                    "_FillValue": -9999,
-                                    "zlib": True,
-                                    "complevel": 5,
-                                    "dtype": "float32"
-                                }
+                                key: {"_FillValue": -9999, "zlib": True, "complevel": 5, "dtype": "float32"}
                             }
             else:
                 encoding = None
@@ -476,15 +418,10 @@ class CreateODB:
 
         color = get_random_color()
         CONSOLE.print(
-            f"{PKG_PREFIX} All responses data with _odb_tag = {self._odb_tag} "
-            f"saved in [bold {color}]{filename}[/]!"
+            f"{PKG_PREFIX} All responses data with _odb_tag = {self._odb_tag} saved in [bold {color}]{filename}[/]!"
         )
 
-    def save_eigen_data(
-            self,
-            mode_tag: int = 1,
-            solver: str = "-genBandArpack",
-    ):
+    def save_eigen_data(self, mode_tag: int = 1, solver: str = "-genBandArpack"):
         """Save modal analysis data.
 
         Parameters
@@ -496,16 +433,15 @@ class CreateODB:
         """
         save_eigen_data(odb_tag=self._odb_tag, mode_tag=mode_tag, solver=solver)
 
-    def save_model_data(
-            self,
-    ):
+    def save_model_data(self):
         """Save the model data from the current domain."""
         save_model_data(odb_tag=self._odb_tag)
 
 
 def loadODB(
-        obd_tag,
-        resp_type: str = "Nodal",
+    obd_tag,
+    resp_type: str = "Nodal",
+    verbose: bool = True,
 ):
     """Load saved response data.
 
@@ -513,12 +449,16 @@ def loadODB(
     --------
     Relevant to a response type.
     """
+    RESULTS_DIR = CONFIGS.get_output_dir()
+    CONSOLE = CONFIGS.get_console()
+    PKG_PREFIX = CONFIGS.get_pkg_prefix()
+    RESP_FILE_NAME = CONFIGS.get_resp_filename()
+
     filename = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{obd_tag}.nc"
     with xr.open_datatree(filename, engine="netcdf4").load() as dt:
         color = get_random_color()
-        CONSOLE.print(
-            f"{PKG_PREFIX} Loading response data from [bold {color}]{filename}[/] ..."
-        )
+        if verbose:
+            CONSOLE.print(f"{PKG_PREFIX} Loading response data from [bold {color}]{filename}[/] ...")
         model_info_steps, model_update = ModelInfoStepData.read_file(dt, unit_factors=POST_ARGS.unit_factors)
         if resp_type.lower() == "nodal":
             resp_step = NodalRespStepData.read_file(dt, unit_factors=POST_ARGS.unit_factors)
@@ -541,16 +481,12 @@ def loadODB(
         elif resp_type.lower() == "sensitivity":
             resp_step = SensitivityRespStepData.read_file(dt)
         else:
-            raise ValueError(f"Unsupported response type {resp_type}!")
+            raise ValueError(f"Unsupported response type {resp_type}!")  # noqa: TRY003
 
     return model_info_steps, model_update, resp_step
 
 
-def get_model_data(
-        odb_tag: int = None,
-        data_type: str = "Nodal",
-        from_responses: bool = False
-):
+def get_model_data(odb_tag: Optional[int] = None, data_type: str = "Nodal", from_responses: bool = False):
     """Read model data from a file.
 
     Parameters
@@ -560,6 +496,10 @@ def get_model_data(
     data_type: str, default: Nodal
         Type of data to be read.
         Optional: "Nodal", "Frame", "Link", "Truss", "Shell", "Plane", "Brick".
+
+        ... Note::
+            For element data, the cells represent the index of the nodes in "Nodal" data.
+
     from_responses: bool, default: False
         Whether to read data from response data.
         If True, the data will be read from the response data file.
@@ -569,6 +509,12 @@ def get_model_data(
     ---------
     ModelData: xarray.Dataset if model_update is True, otherwise xarray.DataArray
     """
+    RESULTS_DIR = CONFIGS.get_output_dir()
+    CONSOLE = CONFIGS.get_console()
+    PKG_PREFIX = CONFIGS.get_pkg_prefix()
+    RESP_FILE_NAME = CONFIGS.get_resp_filename()
+    MODEL_FILE_NAME = CONFIGS.get_model_filename()
+
     if data_type.lower() == "nodal":
         data_type = "NodalData"
     elif data_type.lower() in ["frame", "beam"]:
@@ -586,7 +532,7 @@ def get_model_data(
     elif data_type.lower() in ["brick", "solid"]:
         data_type = "BrickData"
     else:
-        raise ValueError(f"Data type {data_type} not found.")
+        raise ValueError(f"Data type {data_type} not found.")  # noqa: TRY003
     if from_responses:
         filename = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{odb_tag}.nc"
         with xr.open_datatree(filename, engine="netcdf4").load() as dt:
@@ -596,17 +542,15 @@ def get_model_data(
         with xr.open_datatree(filename, engine="netcdf4").load() as dt:
             data = dt["ModelInfo"][data_type][data_type]
     color = get_random_color()
-    CONSOLE.print(
-        f"{PKG_PREFIX} Loading {data_type} data from [bold {color}]{filename}[/] ..."
-    )
+    CONSOLE.print(f"{PKG_PREFIX} Loading {data_type} data from [bold {color}]{filename}[/] ...")
     return data
 
 
 def get_nodal_responses(
-        odb_tag: int,
-        resp_type: str = None,
-        node_tags: Union[list, tuple, int] = None,
-        print_info: bool = True,
+    odb_tag: int,
+    resp_type: Optional[str] = None,
+    node_tags: Optional[Union[list, tuple, int]] = None,
+    print_info: bool = True,
 ) -> xr.Dataset:
     """Read nodal responses data from a file.
 
@@ -655,34 +599,32 @@ def get_nodal_responses(
         You can further index or process the data.
 
     """
+    RESULTS_DIR = CONFIGS.get_output_dir()
+    CONSOLE = CONFIGS.get_console()
+    PKG_PREFIX = CONFIGS.get_pkg_prefix()
+    RESP_FILE_NAME = CONFIGS.get_resp_filename()
+
     filename = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{odb_tag}.nc"
     with xr.open_datatree(filename, engine="netcdf4").load() as dt:
         if print_info:
             color = get_random_color()
             if resp_type is None:
-                CONSOLE.print(
-                    f"{PKG_PREFIX} Loading all response data from [bold {color}]{filename}[/] ..."
-                )
+                CONSOLE.print(f"{PKG_PREFIX} Loading all response data from [bold {color}]{filename}[/] ...")
             else:
-                CONSOLE.print(
-                    f"{PKG_PREFIX} Loading {resp_type} response data from [bold {color}]{filename}[/] ..."
-                )
+                CONSOLE.print(f"{PKG_PREFIX} Loading {resp_type} response data from [bold {color}]{filename}[/] ...")
 
         nodal_resp = NodalRespStepData.read_response(
-            dt,
-            resp_type=resp_type,
-            node_tags=node_tags,
-            unit_factors=POST_ARGS.unit_factors
+            dt, resp_type=resp_type, node_tags=node_tags, unit_factors=POST_ARGS.unit_factors
         )
     return nodal_resp
 
 
 def get_element_responses(
-        odb_tag: int,
-        ele_type: str,
-        resp_type: str = None,
-        ele_tags: Union[list, tuple, int] = None,
-        print_info: bool = True,
+    odb_tag: int,
+    ele_type: str,
+    resp_type: Optional[str] = None,
+    ele_tags: Optional[Union[list, tuple, int]] = None,
+    print_info: bool = True,
 ) -> xr.Dataset:
     """Read nodal responses data from a file.
 
@@ -760,14 +702,17 @@ def get_element_responses(
         dimension names and coordinates.
         You can further index or process the data.
     """
+    RESULTS_DIR = CONFIGS.get_output_dir()
+    CONSOLE = CONFIGS.get_console()
+    PKG_PREFIX = CONFIGS.get_pkg_prefix()
+    RESP_FILE_NAME = CONFIGS.get_resp_filename()
+
     filename = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{odb_tag}.nc"
     with xr.open_datatree(filename, engine="netcdf4").load() as dt:
         if print_info:
             color = get_random_color()
             if resp_type is None:
-                CONSOLE.print(
-                    f"{PKG_PREFIX} Loading {ele_type} response data from [bold {color}]{filename}[/] ..."
-                )
+                CONSOLE.print(f"{PKG_PREFIX} Loading {ele_type} response data from [bold {color}]{filename}[/] ...")
             else:
                 CONSOLE.print(
                     f"{PKG_PREFIX} Loading {ele_type} {resp_type} response data from [bold {color}]{filename}[/] ..."
@@ -803,20 +748,20 @@ def get_element_responses(
             )
         elif ele_type.lower() == "contact":
             ele_resp = ContactRespStepData.read_response(
-                dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=POST_ARGS.unit_factors)
+                dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=POST_ARGS.unit_factors
+            )
         else:
-            raise ValueError(
-                f"Unsupported element type {ele_type}, "
-                "must in [Frame, Truss, Link, Shell, Plane, Solid, Contact]!"
+            raise ValueError(  # noqa: TRY003
+                f"Unsupported element type {ele_type}, must in [Frame, Truss, Link, Shell, Plane, Solid, Contact]!"
             )
 
     return ele_resp
 
 
 def get_sensitivity_responses(
-        odb_tag: int,
-        resp_type: str = None,
-        print_info: bool = True,
+    odb_tag: int,
+    resp_type: Optional[str] = None,
+    print_info: bool = True,
 ) -> xr.Dataset:
     """Read sensitivity responses data from a file.
 
@@ -843,18 +788,19 @@ def get_sensitivity_responses(
     SensResp: `xarray.Dataset <https://docs.xarray.dev/en/stable/generated/xarray.Dataset.html>`_
         Sensitivity responses' data.
     """
+    RESULTS_DIR = CONFIGS.get_output_dir()
+    CONSOLE = CONFIGS.get_console()
+    PKG_PREFIX = CONFIGS.get_pkg_prefix()
+    RESP_FILE_NAME = CONFIGS.get_resp_filename()
+
     filename = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{odb_tag}.nc"
     with xr.open_datatree(filename, engine="netcdf4").load() as dt:
         if print_info:
             color = get_random_color()
             if resp_type is None:
-                CONSOLE.print(
-                    f"{PKG_PREFIX} Loading response data from [bold {color}]{filename}[/] ..."
-                )
+                CONSOLE.print(f"{PKG_PREFIX} Loading response data from [bold {color}]{filename}[/] ...")
             else:
-                CONSOLE.print(
-                    f"{PKG_PREFIX} Loading {resp_type} response data from [bold {color}]{filename}[/] ..."
-                )
+                CONSOLE.print(f"{PKG_PREFIX} Loading {resp_type} response data from [bold {color}]{filename}[/] ...")
 
         resp = SensitivityRespStepData.read_response(dt, resp_type=resp_type)
 
@@ -862,8 +808,8 @@ def get_sensitivity_responses(
 
 
 def update_unit_system(
-        pre: dict[str, str] = None,
-        post: dict[str, str] = None,
+    pre: Optional[dict[str, str]] = None,
+    post: Optional[dict[str, str]] = None,
 ):
     """Set the unit system will be used for post-processing.
 
@@ -892,15 +838,14 @@ def update_unit_system(
     None
     """
     unit_factors, unit_syms = _parse_unit_factors(analysis_unit_system=pre, post_unit_system=post)
-    setattr(POST_ARGS, "unit_factors", unit_factors)
-    setattr(POST_ARGS, "unit_symbols", unit_syms)
+    POST_ARGS.unit_factors = unit_factors
+    POST_ARGS.unit_symbols = unit_syms
 
 
 def reset_unit_system():
-    """Reset unit system for post-processing.
-    """
-    setattr(POST_ARGS, "unit_factors", None)
-    setattr(POST_ARGS, "unit_symbols", None)
+    """Reset unit system for post-processing."""
+    POST_ARGS.unit_factors = None
+    POST_ARGS.unit_symbols = None
 
 
 def _parse_unit_factors(analysis_unit_system, post_unit_system):
@@ -909,19 +854,19 @@ def _parse_unit_factors(analysis_unit_system, post_unit_system):
         unit_syms = None
     else:
         if not isinstance(analysis_unit_system, dict):
-            raise ValueError("analysis_unit_system must be of type dict!")
+            raise ValueError("analysis_unit_system must be of type dict!")  # noqa: TRY003
         if not isinstance(post_unit_system, dict):
-            raise ValueError("post_unit_system must be of type dict!")
-        for key in analysis_unit_system.keys():
+            raise ValueError("post_unit_system must be of type dict!")  # noqa: TRY003
+        for key in analysis_unit_system:
             if key not in ["length", "force", "time"]:
-                raise ValueError("key must be one of [length, force, time]!")
-        for key in post_unit_system.keys():
+                raise ValueError("key must be one of [length, force, time]!")  # noqa: TRY003
+        for key in post_unit_system:
             if key not in ["length", "force", "time"]:
-                raise ValueError("key must be one of [length, force, time]!")
+                raise ValueError("key must be one of [length, force, time]!")  # noqa: TRY003
 
-        analysis_units_ = dict(force=None, length=None, time=None)
+        analysis_units_ = {"force": None, "length": None, "time": None}
         analysis_units_.update(analysis_unit_system)
-        post_units_ = dict(force=None, length=None, time=None)
+        post_units_ = {"force": None, "length": None, "time": None}
         post_units_.update(post_unit_system)
         unit_factors = get_post_unit_multiplier(
             analysis_length=analysis_units_["length"],

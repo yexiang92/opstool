@@ -1,15 +1,15 @@
 import warnings
-import numpy as np
-import xarray as xr
-import openseespy.opensees as ops
-from typing import Union
+from typing import ClassVar, Optional, Union
 
+import numpy as np
+import openseespy.opensees as ops
+import xarray as xr
 
 from ._response_base import ResponseBase, _expand_to_uniform_array
 
 
 class FiberSecData:
-    ELE_SEC_KEYS = dict()  # key: ele_tag, value: sec_num
+    ELE_SEC_KEYS: ClassVar[dict] = {}  # key: ele_tag, value: sec_num
 
     @classmethod
     def add_data(cls, ele_tags=None):
@@ -31,22 +31,22 @@ class FiberSecData:
         return cls.ELE_SEC_KEYS
 
 
-def _set_fiber_sec_data(fiber_ele_tags: Union[str, list, tuple] = None):
+def _set_fiber_sec_data(fiber_ele_tags: Optional[Union[str, list, tuple]] = None):
     FiberSecData.add_data(fiber_ele_tags)
 
 
 class FiberSecRespStepData(ResponseBase):
-    def __init__(self, fiber_ele_tags: Union[str, list, tuple] = None, dtype: dict = None):
+    def __init__(self, fiber_ele_tags: Optional[Union[str, list, tuple]] = None, dtype: Optional[dict] = None):
         _set_fiber_sec_data(fiber_ele_tags)
         self.ELE_SEC_KEYS = FiberSecData.get_ele_sec_keys()
 
         self.resp_names = ["Stresses", "Strains", "secForce", "secDefo"]
         self.resp_steps = None
-        self.resp_steps_dict = dict()
+        self.resp_steps_dict = {}
         self.times = []
         self.step_track = 0
 
-        self.dtype = dict(int=np.int32, float=np.float32)
+        self.dtype = {"int": np.int32, "float": np.float32}
         if isinstance(dtype, dict):
             self.dtype.update(dtype)
 
@@ -110,10 +110,12 @@ class FiberSecRespStepData(ResponseBase):
     def _to_xarray(self):
         # self.resp_steps = xr.concat(self.resp_steps, dim="time", join="outer")
         # self.resp_steps.coords["time"] = self.times
-        data_vars = {"Stresses": (("time", "eleTags", "secPoints", "fiberPoints"), self.resp_steps_dict["Stresses"]),
-                     "Strains": (("time", "eleTags", "secPoints", "fiberPoints"), self.resp_steps_dict["Strains"]),
-                     "secDefo": (("time", "eleTags", "secPoints", "DOFs"), self.resp_steps_dict["secDefo"]),
-                     "secForce": (("time", "eleTags", "secPoints", "DOFs"), self.resp_steps_dict["secForce"])}
+        data_vars = {
+            "Stresses": (("time", "eleTags", "secPoints", "fiberPoints"), self.resp_steps_dict["Stresses"]),
+            "Strains": (("time", "eleTags", "secPoints", "fiberPoints"), self.resp_steps_dict["Strains"]),
+            "secDefo": (("time", "eleTags", "secPoints", "DOFs"), self.resp_steps_dict["secDefo"]),
+            "secForce": (("time", "eleTags", "secPoints", "DOFs"), self.resp_steps_dict["secForce"]),
+        }
         self.resp_steps = xr.Dataset(
             data_vars=data_vars,
             coords={
@@ -140,7 +142,7 @@ class FiberSecRespStepData(ResponseBase):
         return dt
 
     @staticmethod
-    def read_file(dt: xr.DataTree, unit_factors: dict = None):
+    def read_file(dt: xr.DataTree, unit_factors: Optional[dict] = None):
         resp_steps = dt["/FiberSectionResponses"].to_dataset()
         if unit_factors is not None:
             resp_steps = FiberSecRespStepData._unit_transform(resp_steps, unit_factors)
@@ -163,12 +165,14 @@ class FiberSecRespStepData(ResponseBase):
         # --------------------------------------------------------
         resp_steps["ys"] *= disp_factor
         resp_steps["zs"] *= disp_factor
-        resp_steps["areas"] *= disp_factor ** 2
+        resp_steps["areas"] *= disp_factor**2
 
         return resp_steps
 
     @staticmethod
-    def read_response(dt: xr.DataTree, resp_type: str = None, ele_tags=None, unit_factors: dict = None):
+    def read_response(
+        dt: xr.DataTree, resp_type: Optional[str] = None, ele_tags=None, unit_factors: Optional[dict] = None
+    ):
         ds = FiberSecRespStepData.read_file(dt, unit_factors=unit_factors)
         if resp_type is None:
             if ele_tags is None:
@@ -177,9 +181,7 @@ class FiberSecRespStepData(ResponseBase):
                 return ds.sel(eleTags=ele_tags)
         else:
             if resp_type not in list(ds.keys()):
-                raise ValueError(
-                    f"resp_type {resp_type} not found in {list(ds.keys())}"
-                )
+                raise ValueError(f"resp_type {resp_type} not found in {list(ds.keys())}")  # noqa: TRY003
             if ele_tags is not None:
                 return ds[resp_type].sel(eleTags=ele_tags)
             else:
@@ -201,7 +203,7 @@ def _get_fiber_sec_resp(ele_secs: dict, dtype: dict):
         sec_num = int(sec_num)
         stress, strain, defo, force = [], [], [], []
         for i in range(sec_num):
-            fiber_data = _get_fiber_sec_data(ele_tag, i+1, dtype=dtype)
+            fiber_data = _get_fiber_sec_data(ele_tag, i + 1, dtype=dtype)
             stress.append(fiber_data[:, -2])
             strain.append(fiber_data[:, -1])
         all_stress.append(_expand_to_uniform_array(stress))
@@ -217,9 +219,7 @@ def _get_fiber_sec_resp(ele_secs: dict, dtype: dict):
         sec_num = int(sec_num)
         defo, force = [], []
         for i in range(sec_num):
-            defo_forces = ops.eleResponse(
-                ele_tag, "section", f"{i+1}", "forceAndDeformation"
-            )
+            defo_forces = ops.eleResponse(ele_tag, "section", f"{i + 1}", "forceAndDeformation")
             if len(defo_forces) == 4:
                 defo_forces = [
                     defo_forces[0],  # epsilon
@@ -242,7 +242,8 @@ def _get_fiber_sec_resp(ele_secs: dict, dtype: dict):
 
     return all_stress, all_strains, all_defo, all_force
 
-def _get_fiber_sec_data(ele_tag: int, sec_num: int = 1, dtype: dict = None):
+
+def _get_fiber_sec_data(ele_tag: int, sec_num: int = 1, dtype: Optional[dict] = None):
     """Get the fiber sec data for a beam element.
 
     Parameters
@@ -261,11 +262,12 @@ def _get_fiber_sec_data(ele_tag: int, sec_num: int = 1, dtype: dict = None):
     # Extract fiber data using eleResponse() command
     sec_loc = ops.sectionLocation(ele_tag)
     if len(sec_loc) == 0:
-        raise ValueError(f"eleTag {ele_tag} have no fiber sec!")
+        raise ValueError(f"eleTag {ele_tag} have no fiber sec!")  # noqa: TRY003
     if sec_num > len(sec_loc):
         warnings.warn(
             f"Section number {sec_num} larger than max number {len(sec_loc)} of elemeng with tag {ele_tag}!"
-            f"Section number {sec_num} set to {len(sec_loc)}!"
+            f"Section number {sec_num} set to {len(sec_loc)}!",
+            stacklevel=2,
         )
         sec_num = len(sec_loc)
     ele_tag = int(ele_tag)

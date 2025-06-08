@@ -395,17 +395,17 @@ ELE_TAG_Plane = [
     59,
     60,
     61,
-    #116,  # QuadSurfaceLoad
+    # 116,  # QuadSurfaceLoad
     119,
     120,
     126,
     134,
-    #180, # TriSurfaceLoad
+    # 180, # TriSurfaceLoad
     207,
     208,
     209,
     219,
-    100000011, # FourNodeQuadWithSensitivity
+    100000011,  # FourNodeQuadWithSensitivity
     100003,  # ELE_TAG_VS3D4QuadWithSensitivity
     100009,  # ELE_TAG_AV3D4QuadWithSensitivity
     100002,  # ELE_TAG_ASI3D8QuadWithSensitivity
@@ -480,7 +480,7 @@ OPS_ELE_TAGS = SimpleNamespace(
 )
 OPS_ELE_CLASSTAG2TYPE = ELE_TYPE_TAGS
 
-OPS_ELE_TYPES = dict()
+OPS_ELE_TYPES = {}
 for attr, value in vars(OPS_ELE_TAGS).items():
     if attr != "Types":
         OPS_ELE_TYPES[attr] = [ELE_TYPE_TAGS[tag] for tag in value]

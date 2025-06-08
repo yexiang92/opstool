@@ -1,13 +1,14 @@
+from typing import Optional
+
 import numpy as np
 import openseespy.opensees as ops
 import xarray as xr
-from tornado.gen import moment
 
 from ._response_base import ResponseBase
 
 
 class NodalRespStepData(ResponseBase):
-    def __init__(self, node_tags=None, model_update: bool = False, dtype: dict = None):
+    def __init__(self, node_tags=None, model_update: bool = False, dtype: Optional[dict] = None):
         self.resp_names = [
             "disp",
             "vel",
@@ -20,12 +21,12 @@ class NodalRespStepData(ResponseBase):
         self.node_tags = node_tags if node_tags is not None else ops.getNodeTags()
         self.resp_steps = None
         self.resp_steps_list = []  # for model update
-        self.resp_steps_dict = dict()  # for non-update
+        self.resp_steps_dict = {}  # for non-update
         self.times = []
         self.step_track = 0
 
         self.model_update = model_update
-        self.dtype = dict(int=np.int32, float=np.float32)
+        self.dtype = {"int": np.int32, "float": np.float32}
         if isinstance(dtype, dict):
             self.dtype.update(dtype)
 
@@ -110,7 +111,7 @@ class NodalRespStepData(ResponseBase):
         return dt
 
     @staticmethod
-    def read_file(dt: xr.DataTree, unit_factors: dict = None):
+    def read_file(dt: xr.DataTree, unit_factors: Optional[dict] = None):
         # (eleTag, steps, resp_type)
         resp_steps = dt["/NodalResponses"].to_dataset()
         if unit_factors is not None:
@@ -145,7 +146,9 @@ class NodalRespStepData(ResponseBase):
         return resp_steps
 
     @staticmethod
-    def read_response(dt: xr.DataTree, resp_type: str = None, node_tags=None, unit_factors: dict = None):
+    def read_response(
+        dt: xr.DataTree, resp_type: Optional[str] = None, node_tags=None, unit_factors: Optional[dict] = None
+    ):
         ds = NodalRespStepData.read_file(dt, unit_factors=unit_factors)
         if resp_type is None:
             if node_tags is None:
@@ -154,9 +157,7 @@ class NodalRespStepData(ResponseBase):
                 return ds.sel(nodeTags=node_tags)
         else:
             if resp_type not in list(ds.keys()):
-                raise ValueError(
-                    f"resp_type {resp_type} not found in {list(ds.keys())}"
-                )
+                raise ValueError(f"resp_type {resp_type} not found in {list(ds.keys())}")  # noqa: TRY003
             if node_tags is not None:
                 return ds[resp_type].sel(nodeTags=node_tags)
             else:
@@ -169,7 +170,7 @@ def _get_nodal_resp(node_tags, dtype: dict):
     node_accel = []  # 6 data each row, Ux, Uy, Uz, Rx, Ry, Rz
     node_pressure = []  # 1 data each row, P
     all_node_tags = ops.getNodeTags()
-    for i, tag in enumerate(node_tags):
+    for _i, tag in enumerate(node_tags):
         tag = int(tag)
         if tag in all_node_tags:
             coord = ops.nodeCoord(tag)

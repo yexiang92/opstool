@@ -1,16 +1,13 @@
 import os
-import numpy as np
-import xarray as xr
-from typing import Union
-import openseespy.opensees as ops
+from typing import Optional, Union
 
-from ..utils import CONSTANTS, get_random_color
+import numpy as np
+import openseespy.opensees as ops
+import xarray as xr
+
+from ..utils import CONFIGS, get_random_color
 from .model_data import GetFEMData
 
-RESULTS_DIR = CONSTANTS.get_output_dir()
-CONSOLE = CONSTANTS.get_console()
-PKG_PREFIX = CONSTANTS.get_pkg_prefix()
-EIGEN_FILE_NAME = CONSTANTS.get_eigen_filename()
 
 def _get_modal_properties(mode_tag: int = 1, solver: str = "-genBandArpack"):
     """Get modal properties' data.
@@ -43,7 +40,7 @@ def _get_modal_properties(mode_tag: int = 1, solver: str = "-genBandArpack"):
             value = value[0]
         attrs[key] = value
     # ------------------------------------------------------------------------
-    column_names = [name for name in modal_props.keys() if name not in attrs_names]
+    column_names = [name for name in modal_props if name not in attrs_names]
     columns = [modal_props[name] for name in column_names]
     data = np.vstack(columns).transpose()[:mode_tag]
     data = xr.DataArray(
@@ -83,11 +80,11 @@ def _get_eigen_info(
     modal_props = _get_modal_properties(mode_tag, solver)
     eigenvectors = []
     node_tags = ops.getNodeTags()
-    for mode_tag in range(1, mode_tag + 1):
+    for mode_tag_i in range(1, mode_tag + 1):
         eigen_vector = np.zeros((len(node_tags), 6))
         for i, Tag in enumerate(node_tags):
             coord = ops.nodeCoord(Tag)
-            eigen = ops.nodeEigenvector(Tag, mode_tag)
+            eigen = ops.nodeEigenvector(Tag, mode_tag_i)
             if len(coord) == 1:
                 coord.extend([0, 0])
                 eigen.extend([0, 0, 0, 0, 0])
@@ -136,12 +133,17 @@ def save_eigen_data(
        OpenSees' eigenvalue analysis solver, by default "-genBandArpack".
        See `eigen Command <https://opensees.github.io/OpenSeesDocumentation/user/manual/analysis/eigen.html>`_
     """
+    RESULTS_DIR = CONFIGS.get_output_dir()
+    CONSOLE = CONFIGS.get_console()
+    PKG_PREFIX = CONFIGS.get_pkg_prefix()
+    EIGEN_FILE_NAME = CONFIGS.get_eigen_filename()
+
     output_filename = RESULTS_DIR + "/" + f"{EIGEN_FILE_NAME}-{odb_tag}.nc"
     # -----------------------------------------------------------------
     model_info, _ = GetFEMData().get_model_info()
     modal_props, eigen_vectors = _get_eigen_info(mode_tag, solver)
-    eigen_data = dict()
-    for key in model_info.keys():
+    eigen_data = {}
+    for key in model_info:
         eigen_data[f"ModelInfo/{key}"] = xr.Dataset({key: model_info[key]})
     eigen_data["Eigen/ModalProps"] = xr.Dataset({modal_props.name: modal_props})
     eigen_data["Eigen/EigenVectors"] = xr.Dataset({eigen_vectors.name: eigen_vectors})
@@ -149,9 +151,7 @@ def save_eigen_data(
     dt.to_netcdf(output_filename, mode="w", engine="netcdf4")
     # /////////////////////////////////////
     color = get_random_color()
-    CONSOLE.print(
-        f"{PKG_PREFIX} Eigen data has been saved to [bold {color}]{output_filename}[/]!"
-    )
+    CONSOLE.print(f"{PKG_PREFIX} Eigen data has been saved to [bold {color}]{output_filename}[/]!")
 
 
 def load_eigen_data(
@@ -161,6 +161,11 @@ def load_eigen_data(
     resave: bool = True,
 ):
     """Get the eigenvalue data from the saved file."""
+    RESULTS_DIR = CONFIGS.get_output_dir()
+    CONSOLE = CONFIGS.get_console()
+    PKG_PREFIX = CONFIGS.get_pkg_prefix()
+    EIGEN_FILE_NAME = CONFIGS.get_eigen_filename()
+
     filename = f"{RESULTS_DIR}/" + f"{EIGEN_FILE_NAME}-{odb_tag}.nc"
     if not os.path.exists(filename):
         resave = True
@@ -168,11 +173,9 @@ def load_eigen_data(
         save_eigen_data(odb_tag=odb_tag, mode_tag=mode_tag, solver=solver)
     else:
         color = get_random_color()
-        CONSOLE.print(
-            f"{PKG_PREFIX} Loading eigen data from [bold {color}]{filename}[/] ..."
-        )
+        CONSOLE.print(f"{PKG_PREFIX} Loading eigen data from [bold {color}]{filename}[/] ...")
     with xr.open_datatree(filename, engine="netcdf4").load() as dt:
-        model_info = dict()
+        model_info = {}
         for key, value in dt["ModelInfo"].items():
             model_info[key] = value[key]
         model_props = dt["Eigen/ModalProps"]["ModalProps"]
@@ -181,7 +184,7 @@ def load_eigen_data(
 
 
 def get_eigen_data(
-    odb_tag: Union[str, int] = None,
+    odb_tag: Optional[Union[str, int]] = None,
 ):
     """Get the eigenvalue data from the saved file.
 

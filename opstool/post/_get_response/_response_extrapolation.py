@@ -239,45 +239,38 @@ def resp_extrap_brick8(resp):
 
 
 def shape_brick27(r, s, t):
-    nodes = np.array(
-        [
-            [-1, -1, -1],  # Nodes 1-4 Lower surface, counterclockwise
-            [1, -1, -1],
-            [1, 1, -1],
-            [-1, 1, -1],
-            [-1, -1, 1],  # Nodes 5-8 Upper surface, counterclockwise
-            [1, -1, 1],
-            [1, 1, 1],
-            [-1, 1, 1],
-            [0, -1, -1],  # Nodes 9-12 Midsides of edges 1-2, 2-3, 3-4, 4-1
-            [1, 0, -1],
-            [0, 1, -1],
-            [-1, 0, -1],
-            [0, -1, 1],  # Nodes 13-16 Midsides of edges 5-6, 6-7, 7-8, 8-5
-            [1, 0, 1],
-            [0, 1, 1],
-            [-1, 0, 1],
-            [-1, -1, 0],  # Nodes 17-20 Midsides of edges 1-5, 2-6, 3-7, 4-8
-            [1, -1, 0],
-            [1, 1, 0],
-            [-1, 1, 0],
-            [1, 0, 0],  # Nodes 21 - 26 Mid-face nodes on +r, +s, +t, -r, -s, -t
-            [0, 1, 0],
-            [0, 0, 1],
-            [-1, 0, 0],
-            [0, -1, 0],
-            [0, 0, -1],
-            [0, 0, 0],  # Node 27 Centroid node
-        ]
-    )
+    nodes = np.array([
+        [-1, -1, -1],  # Nodes 1-4 Lower surface, counterclockwise
+        [1, -1, -1],
+        [1, 1, -1],
+        [-1, 1, -1],
+        [-1, -1, 1],  # Nodes 5-8 Upper surface, counterclockwise
+        [1, -1, 1],
+        [1, 1, 1],
+        [-1, 1, 1],
+        [0, -1, -1],  # Nodes 9-12 Midsides of edges 1-2, 2-3, 3-4, 4-1
+        [1, 0, -1],
+        [0, 1, -1],
+        [-1, 0, -1],
+        [0, -1, 1],  # Nodes 13-16 Midsides of edges 5-6, 6-7, 7-8, 8-5
+        [1, 0, 1],
+        [0, 1, 1],
+        [-1, 0, 1],
+        [-1, -1, 0],  # Nodes 17-20 Midsides of edges 1-5, 2-6, 3-7, 4-8
+        [1, -1, 0],
+        [1, 1, 0],
+        [-1, 1, 0],
+        [1, 0, 0],  # Nodes 21 - 26 Mid-face nodes on +r, +s, +t, -r, -s, -t
+        [0, 1, 0],
+        [0, 0, 1],
+        [-1, 0, 0],
+        [0, -1, 0],
+        [0, 0, -1],
+        [0, 0, 0],  # Node 27 Centroid node
+    ])
     N = np.zeros(27)
     for i in range(27):
-        N[i] = (
-            0.125
-            * (1 + r * nodes[i, 0])
-            * (1 + s * nodes[i, 1])
-            * (1 + t * nodes[i, 2])
-        )
+        N[i] = 0.125 * (1 + r * nodes[i, 0]) * (1 + s * nodes[i, 1]) * (1 + t * nodes[i, 2])
     return N
 
 
@@ -295,30 +288,28 @@ def resp_extrap_brick20(resp):
     """
     sqrt53 = 1.2909944487358056
     shape = np.zeros((20, 27))
-    nodes = sqrt53 * np.array(
-        [
-            [-1, -1, -1],  # Nodes 1-4 Lower surface, counterclockwise
-            [1, -1, -1],
-            [1, 1, -1],
-            [-1, 1, -1],
-            [-1, -1, 1],  # Nodes 5-8 Upper surface, counterclockwise
-            [1, -1, 1],
-            [1, 1, 1],
-            [-1, 1, 1],
-            [0, -1, -1],  # Nodes 9-12 Midsides of edges 1-2, 2-3, 3-4, 4-1
-            [1, 0, -1],
-            [0, 1, -1],
-            [-1, 0, -1],
-            [0, -1, 1],  # Nodes 13-16 Midsides of edges 5-6, 6-7, 7-8, 8-5
-            [1, 0, 1],
-            [0, 1, 1],
-            [-1, 0, 1],
-            [-1, -1, 0],  # Nodes 17-20 Midsides of edges 1-5, 2-6, 3-7, 4-8
-            [1, -1, 0],
-            [1, 1, 0],
-            [-1, 1, 0],
-        ]
-    )
+    nodes = sqrt53 * np.array([
+        [-1, -1, -1],  # Nodes 1-4 Lower surface, counterclockwise
+        [1, -1, -1],
+        [1, 1, -1],
+        [-1, 1, -1],
+        [-1, -1, 1],  # Nodes 5-8 Upper surface, counterclockwise
+        [1, -1, 1],
+        [1, 1, 1],
+        [-1, 1, 1],
+        [0, -1, -1],  # Nodes 9-12 Midsides of edges 1-2, 2-3, 3-4, 4-1
+        [1, 0, -1],
+        [0, 1, -1],
+        [-1, 0, -1],
+        [0, -1, 1],  # Nodes 13-16 Midsides of edges 5-6, 6-7, 7-8, 8-5
+        [1, 0, 1],
+        [0, 1, 1],
+        [-1, 0, 1],
+        [-1, -1, 0],  # Nodes 17-20 Midsides of edges 1-5, 2-6, 3-7, 4-8
+        [1, -1, 0],
+        [1, 1, 0],
+        [-1, 1, 0],
+    ])
     for i in range(20):
         r, s, t = nodes[i]
         shape[i] = shape_brick27(r, s, t)

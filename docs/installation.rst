@@ -30,10 +30,12 @@ Some Tips
 
     .. code-block:: bash
 
-        conda create -n opensees-workspace python=3.12
-        conda activate opensees-workspace
+        conda create -n opensees python=3.12 numpy scipy pandas xarray notebook matplotlib
+        conda activate opensees
         pip install openseespy
         pip install opstool
+    
+    From now on, you only need to work in this environment called ``opensees``, including installing packages, executing codes, etc.
 
 .. dropdown:: 2. OpenSeesPy Version Compatibility
         

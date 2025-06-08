@@ -1,27 +1,37 @@
-from ._read_gmsh import Gmsh2OPS
+from . import io, load, section
+from ._model_data import get_mck, get_node_coord, get_node_mass
 from ._model_mass import ModelMass
-from .pre_utils import remove_void_nodes
-from ._load import gen_grav_load, create_gravity_load, apply_load_distribution
-from ._load import transform_beam_uniform_load, transform_beam_point_load, transform_surface_uniform_load
-from .tcl2py import tcl2py
 from ._unit_system import UnitSystem
-from . import section
-from ._model_data import get_node_coord, get_node_mass
+from .io import Gmsh2OPS, tcl2py
+from .load import (
+    apply_load_distribution,
+    create_gravity_load,
+    gen_grav_load,
+    transform_beam_point_load,
+    transform_beam_uniform_load,
+    transform_surface_uniform_load,
+)
+from .pre_utils import find_void_nodes, remove_void_nodes
 
-__all__ = [
-    "Gmsh2OPS",
-    "ModelMass",
-    "section",
-    "remove_void_nodes",
-    "gen_grav_load",
-    "create_gravity_load",
+__all__ = []  # Initialize __all__ to avoid linting issues
+
+__all__ += section.__all__  # Import section's __all__
+__all__ += load.__all__  # Import load's __all__
+__all__ += io.__all__  # Import io's __all__
+
+__all__ += ["ModelMass", "UnitSystem", "load", "section"]
+
+__all__ += ["Gmsh2OPS", "tcl2py"]  # Import model data functions
+
+__all__ += ["get_mck", "get_node_coord", "get_node_mass"]  # Import model data functions
+
+__all__ += ["find_void_nodes", "remove_void_nodes"]
+
+__all__ += [
     "apply_load_distribution",
-    "transform_beam_uniform_load",
+    "create_gravity_load",
+    "gen_grav_load",
     "transform_beam_point_load",
+    "transform_beam_uniform_load",
     "transform_surface_uniform_load",
-    "tcl2py",
-    "UnitSystem",
-    # ------------------------
-    "get_node_coord",
-    "get_node_mass",
 ]

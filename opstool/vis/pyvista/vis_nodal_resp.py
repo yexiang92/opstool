@@ -12,7 +12,6 @@ from .plot_utils import (
     _get_unstru_cells,
     _plot_all_mesh_cmap,
 )
-from .vis_model import _get_bc_points_cells, _plot_bc, _plot_mp_constraint
 
 
 class PlotNodalResponse(PlotResponseBase):
@@ -23,6 +22,7 @@ class PlotNodalResponse(PlotResponseBase):
         model_update,
     ):
         super().__init__(model_info_steps, node_resp_steps, model_update)
+        self.resps_norm = None
 
     def set_comp_resp_type(self, resp_type, component):
         if resp_type.lower() in ["disp", "dispacement"]:
@@ -52,7 +52,7 @@ class PlotNodalResponse(PlotResponseBase):
     def _get_resp_clim_peak(self, idx="absMax"):
         resps = []
         for i in range(self.num_steps):
-            da = self._get_resp_data(i, self.resp_type, self.component)
+            da = self._get_resp_da(i, self.resp_type, self.component)
             resps.append(da)
         if self.ModelUpdate:
             resps_norm = resps if resps[0].ndim == 1 else [np.linalg.norm(resp, axis=1) for resp in resps]
@@ -78,32 +78,11 @@ class PlotNodalResponse(PlotResponseBase):
         max_resps = [np.max(resp) for resp in resps_norm]
         min_resps = [np.min(resp) for resp in resps_norm]
         cmin, cmax = np.min(min_resps), np.max(max_resps)
+        self.resps_norm = resps_norm
         return cmin, cmax, step
 
-    def _get_deformation_data(self, idx):
-        data = self._get_resp_data(idx, "disp", ["UX", "UY", "UZ"])
-        return data
-
-    def _get_defo_scale_factor(self):
-        scalars = []
-        for i in range(self.num_steps):
-            defo = self._get_deformation_data(i)
-            scalars.append(np.max(np.linalg.norm(defo, axis=1)))
-        maxv = np.max(scalars)
-        alpha_ = 0.0 if maxv == 0 else self.max_bound_size * self.pargs.scale_factor / maxv
-        return float(alpha_)
-
-    def _make_title(self, resp, step, time):
-        if resp.ndim == 1:
-            # max_resp = np.max(resp)
-            # min_resp = np.min(resp)
-            max_norm = np.max(np.abs(resp))
-            min_norm = np.min(np.abs(resp))
-        else:
-            # max_resp = np.max(resp, axis=0)
-            # min_resp = np.min(resp, axis=0)
-            norm = np.linalg.norm(resp, axis=1)
-            max_norm, min_norm = np.max(norm), np.min(norm)
+    def _make_title(self, step, time):
+        max_norm, min_norm = np.max(self.resps_norm[step]), np.min(self.resps_norm[step])
         title = "Nodal Responses"
         if self.resp_type == "disp":
             resp_type = "Displacement"
@@ -132,14 +111,23 @@ class PlotNodalResponse(PlotResponseBase):
             f"{info['max']:.3E} ({size_symbol[1]})",
             f"{info['step']}(step); {info['time']:.3f}(time)",
         ]
-        if self.unit:
-            info["unit"] = self.unit
+        if self.unit_symbol:
+            info["unit"] = self.unit_symbol
             lines.insert(3, f"{info['unit']} (unit)")
 
         max_len = max(len(line) for line in lines)
         padded_lines = [line.rjust(max_len) for line in lines]
         text = "\n".join(padded_lines)
         return text + "\n"
+
+    def _get_mesh_data(self, step, alpha):
+        node_defo_coords = np.array(self._get_defo_coord_da(step, alpha))
+        if self.resps_norm is not None:
+            scalars = self.resps_norm[step]
+        else:
+            node_resp = np.array(self._get_resp_da(step, self.resp_type, self.component))
+            scalars = node_resp if node_resp.ndim == 1 else np.linalg.norm(node_resp, axis=1)
+        return node_defo_coords, scalars
 
     def _create_mesh(
         self,
@@ -156,32 +144,16 @@ class PlotNodalResponse(PlotResponseBase):
         cpos="iso",
     ):
         step = round(value)
-        node_nodeform_coords_da = self._get_node_data(step)
-        bounds = self._get_node_data(step).attrs["bounds"]
-        line_cells, _ = _get_line_cells(self._get_line_data(step))
-        _, unstru_cell_types, unstru_cells = _get_unstru_cells(self._get_unstru_data(step))
+        line_cells, _ = _get_line_cells(self._get_line_da(step))
+        _, unstru_cell_types, unstru_cells = _get_unstru_cells(self._get_unstru_da(step))
         t_ = self.time[step]
-        node_disp_da = self._get_deformation_data(step)
-        node_resp_da = self._get_resp_data(step, self.resp_type, self.component)
-        is_coord_equal = np.array_equal(
-            node_nodeform_coords_da.coords["tags"].values, node_disp_da.coords["nodeTags"].values
-        )
-        if not is_coord_equal:
-            common_coords = np.intersect1d(
-                node_nodeform_coords_da.coords["tags"].values, node_disp_da.coords["nodeTags"].values
-            )
-            node_nodeform_coords_da = node_nodeform_coords_da.sel({"tags": common_coords})
-            node_disp_da = node_disp_da.sel({"nodeTags": common_coords})
-            node_resp_da = node_resp_da.sel({"nodeTags": common_coords})
-        node_nodeform_coords = node_nodeform_coords_da.to_numpy()
-        node_disp = node_disp_da.to_numpy()
-        node_resp = node_resp_da.to_numpy()
-        node_deform_coords = alpha * node_disp + node_nodeform_coords if alpha > 0.0 else node_nodeform_coords
-        scalars = node_resp if node_resp.ndim == 1 else np.linalg.norm(node_resp, axis=1)
+        node_no_deform_coords = np.array(self._get_node_da(step))
+        node_defo_coords, scalars = self._get_mesh_data(step, alpha)
+        # ----------------------------------------------------------------------------------------------
         plotter.clear_actors()  # ! clear
-        point_plot, line_plot, solid_plot = _plot_all_mesh_cmap(
+        point_grid, line_grid, solid_grid = _plot_all_mesh_cmap(
             plotter,
-            node_deform_coords,
+            node_defo_coords,
             line_cells,
             unstru_cells,
             unstru_cell_types,
@@ -199,9 +171,9 @@ class PlotNodalResponse(PlotResponseBase):
             render_lines_as_tubes=self.pargs.render_lines_as_tubes,
             render_points_as_spheres=self.pargs.render_lines_as_tubes,
             show_origin=show_origin,
-            pos_origin=node_nodeform_coords,
+            pos_origin=node_no_deform_coords,
         )
-        title = self._make_title(node_resp, step, t_)
+        title = self._make_title(step, t_)
         scalar_bar = plotter.add_scalar_bar(title=title, **self.pargs.scalar_bar_kargs)
         if scalar_bar:
             # scalar_bar.SetTitle(title)
@@ -209,103 +181,48 @@ class PlotNodalResponse(PlotResponseBase):
             title_prop.SetJustificationToRight()
             title_prop.BoldOn()
         if show_outline:
-            plotter.show_bounds(
-                grid=False,
-                location="outer",
-                bounds=bounds,
-                show_zaxis=self.show_zaxis,
-            )
-        plotter.add_axes()
-        bc_plot, mp_plot = None, None
+            self._plot_outline(plotter)
+        bc_grid, mp_grid = None, None
         if show_bc:
-            fixed_node_data = self._get_bc_data(step)
-            if len(fixed_node_data) > 0:
-                fix_tags = fixed_node_data["tags"].values
-                node_disp_fix = node_disp_da.sel({"nodeTags": fix_tags}).to_numpy()
-                fixed_data = fixed_node_data.to_numpy()
-                fixed_dofs = fixed_data[:, -6:].astype(int)
-                fixed_coords = alpha * node_disp_fix + fixed_data[:, :3] if alpha > 0.0 else fixed_data[:, :3]
-                max_bound = self._get_node_data(step).attrs["maxBoundSize"]
-                min_bound = self._get_node_data(step).attrs["minBoundSize"]
-                s = (max_bound + min_bound) / 100 * bc_scale
-                bc_plot = _plot_bc(
-                    plotter,
-                    fixed_dofs,
-                    fixed_coords,
-                    s,
-                    show_zaxis=self.show_zaxis,
-                    color=self.pargs.color_bc,
-                )
+            bc_grid = self._plot_bc(plotter, step, defo_scale=alpha, bc_scale=bc_scale)
         if show_mp_constraint:
-            mp_constraint_data = self._get_mp_constraint_data(step)
-            if len(mp_constraint_data) > 0:
-                cells = mp_constraint_data.to_numpy()[:, :3].astype(int)
-                mp_plot = _plot_mp_constraint(
-                    plotter,
-                    node_deform_coords,
-                    cells,
-                    None,
-                    None,
-                    self.pargs.line_width / 2,
-                    self.pargs.color_constraint,
-                    show_dofs=False,
-                )
-        self.update(plotter, cpos=cpos)
-        return point_plot, line_plot, solid_plot, scalar_bar, bc_plot, mp_plot
+            mp_grid = self._plot_mp_constraint(plotter, step, defo_scale=alpha)
+        self._update_plotter(plotter, cpos=cpos)
+        return point_grid, line_grid, solid_grid, scalar_bar, bc_grid, mp_grid
 
     def _update_mesh(
         self,
         value,
-        point_plot=None,
-        line_plot=None,
-        solid_plot=None,
+        point_grid=None,
+        line_grid=None,
+        solid_grid=None,
         scalar_bar=None,
-        bc_plot=None,
-        mp_plot=None,
+        bc_grid=None,
+        mp_grid=None,
         alpha=1.0,
         bc_scale: float = 1.0,
     ):
         step = round(value)
-        po = self._get_node_data(step).to_numpy()
         t_ = self.time[step]
-        if alpha > 0.0:
-            node_disp = self._get_deformation_data(step).to_numpy()
-            points = alpha * node_disp + po
-        else:
-            points = po
-        node_resp = self._get_resp_data(step, self.resp_type, self.component)
-        scalars = node_resp if node_resp.ndim == 1 else np.linalg.norm(node_resp, axis=1)
-        if point_plot:
-            point_plot["scalars"] = scalars
-            point_plot.points = points
-        if line_plot:
-            line_plot["scalars"] = scalars
-            line_plot.points = points
-        if solid_plot:
-            solid_plot["scalars"] = scalars
-            solid_plot.points = points
+        node_defo_coords, scalars = self._get_mesh_data(step, alpha)
+        if point_grid:
+            point_grid["scalars"] = scalars
+            point_grid.points = node_defo_coords
+        if line_grid:
+            line_grid["scalars"] = scalars
+            line_grid.points = node_defo_coords
+        if solid_grid:
+            solid_grid["scalars"] = scalars
+            solid_grid.points = node_defo_coords
         # plotter.update_scalar_bar_range(clim=[np.min(scalars), np.max(scalars)])
         if scalar_bar:
-            title = self._make_title(node_resp, step, t_)
+            title = self._make_title(step, t_)
             # cbar.SetTitle(title)
             scalar_bar.SetTitle(title)
-        if mp_plot:
-            bc_plot.points = points
-        if bc_plot:
-            fixed_node_data = self._get_bc_data(step)
-            fixed_data = fixed_node_data.to_numpy()
-            fixed_dofs = fixed_data[:, -6:].astype(int)
-            fixed_coords = fixed_data[:, :3]
-            max_bound = self._get_node_data(step).attrs["maxBoundSize"]
-            min_bound = self._get_node_data(step).attrs["minBoundSize"]
-            s = (max_bound + min_bound) / 100 * bc_scale
-            bc_points, _ = _get_bc_points_cells(
-                fixed_coords,
-                fixed_dofs,
-                s,
-                self.show_zaxis,
-            )
-            bc_plot.points = bc_points
+        if mp_grid:
+            self._plot_mp_constraint_update(mp_grid, step, defo_scale=alpha)
+        if bc_grid:
+            self._plot_bc_update(bc_grid, step, defo_scale=alpha, bc_scale=bc_scale)
 
     def plot_slide(
         self,
@@ -323,11 +240,7 @@ class PlotNodalResponse(PlotResponseBase):
     ):
         cmin, cmax, _ = self._get_resp_clim_peak()
         clim = (cmin, cmax)
-        if show_defo:
-            alpha_ = self._get_defo_scale_factor()
-            alpha_ = alpha_ * alpha if alpha else alpha_
-        else:
-            alpha_ = 0.0
+        alpha_ = alpha if show_defo else 0.0
         if self.ModelUpdate:
             func = partial(
                 self._create_mesh,
@@ -343,7 +256,7 @@ class PlotNodalResponse(PlotResponseBase):
                 cpos=cpos,
             )
         else:
-            point_plot, line_plot, solid_plot, cbar, bc_plot, mp_plot = self._create_mesh(
+            point_grid, line_grid, solid_grid, cbar, bc_grid, mp_grid = self._create_mesh(
                 plotter,
                 self.num_steps - 1,
                 alpha=alpha_,
@@ -358,12 +271,12 @@ class PlotNodalResponse(PlotResponseBase):
             )
             func = partial(
                 self._update_mesh,
-                point_plot=point_plot,
-                line_plot=line_plot,
-                solid_plot=solid_plot,
+                point_grid=point_grid,
+                line_grid=line_grid,
+                solid_grid=solid_grid,
                 scalar_bar=cbar,
-                bc_plot=bc_plot,
-                mp_plot=mp_plot,
+                bc_grid=bc_grid,
+                mp_grid=mp_grid,
                 alpha=alpha_,
                 bc_scale=bc_scale,
                 **kargs,
@@ -386,11 +299,7 @@ class PlotNodalResponse(PlotResponseBase):
     ):
         cmin, cmax, step = self._get_resp_clim_peak(idx=step)
         clim = (cmin, cmax)
-        if show_defo:
-            alpha_ = self._get_defo_scale_factor()
-            alpha_ = alpha_ * alpha if alpha else alpha_
-        else:
-            alpha_ = 0.0
+        alpha_ = alpha if show_defo else 0.0
         self._create_mesh(
             plotter=plotter,
             value=step,
@@ -428,11 +337,7 @@ class PlotNodalResponse(PlotResponseBase):
             plotter.open_movie(savefig, framerate=framerate)
         cmin, cmax, max_step = self._get_resp_clim_peak()
         clim = (cmin, cmax)
-        if show_defo:
-            alpha_ = self._get_defo_scale_factor()
-            alpha_ = alpha_ * alpha if alpha else alpha_
-        else:
-            alpha_ = 0.0
+        alpha_ = alpha if show_defo else 0.0
         # plotter.write_frame()  # write initial data
         if self.ModelUpdate:
             for step in range(self.num_steps):
@@ -451,7 +356,7 @@ class PlotNodalResponse(PlotResponseBase):
                 )
                 plotter.write_frame()
         else:
-            point_plot, line_plot, solid_plot, scalar_bar, bc_plot, mp_plot = self._create_mesh(
+            point_grid, line_grid, solid_grid, scalar_bar, bc_grid, mp_grid = self._create_mesh(
                 plotter,
                 self.num_steps - 1,
                 alpha=alpha_,
@@ -467,12 +372,12 @@ class PlotNodalResponse(PlotResponseBase):
             for step in range(self.num_steps):
                 self._update_mesh(
                     value=step,
-                    point_plot=point_plot,
-                    line_plot=line_plot,
-                    solid_plot=solid_plot,
+                    point_grid=point_grid,
+                    line_grid=line_grid,
+                    solid_grid=solid_grid,
                     scalar_bar=scalar_bar,
-                    bc_plot=bc_plot,
-                    mp_plot=mp_plot,
+                    bc_grid=bc_grid,
+                    mp_grid=mp_grid,
                     alpha=alpha_,
                     bc_scale=bc_scale,
                 )
@@ -488,6 +393,7 @@ def plot_nodal_responses(
     resp_type: str = "disp",
     resp_dof: Union[list, tuple, str] = ("UX", "UY", "UZ"),
     unit_symbol: Optional[str] = None,
+    unit_factor: Optional[float] = None,
     cpos: str = "iso",
     show_bc: bool = True,
     bc_scale: float = 1.0,
@@ -529,6 +435,10 @@ def plot_nodal_responses(
 
     unit_symbol: str, default: None
         Unit symbol to be displayed in the plot.
+    unit_factor: float, default: None
+        The multiplier used to convert units.
+        For example, if you want to visualize stress and the current data unit is kPa, you can set ``unit_symbol="kPa" and unit_factor=1.0``.
+        If you want to visualize in MPa, you can set ``unit_symbol="MPa" and unit_factor=0.001``.
     cpos: str, default: iso
         Model display perspective, optional: "iso", "xy", "yx", "xz", "zx", "yz", "zy".
         If 3d, defaults to "iso". If 2d, defaults to "xy".
@@ -568,7 +478,7 @@ def plot_nodal_responses(
         off_screen=PLOT_ARGS.off_screen,
     )
     plotbase = PlotNodalResponse(model_info_steps, node_resp_steps, model_update)
-    plotbase.set_unit_symbol(unit_symbol)
+    plotbase.set_unit(symbol=unit_symbol, factor=unit_factor)
     plotbase.set_comp_resp_type(resp_type=resp_type, component=resp_dof)
     if slides:
         plotbase.plot_slide(
@@ -599,7 +509,7 @@ def plot_nodal_responses(
         )
     if PLOT_ARGS.anti_aliasing:
         plotter.enable_anti_aliasing(PLOT_ARGS.anti_aliasing)
-    return plotbase.update(plotter, cpos)
+    return plotbase._update_plotter(plotter, cpos)
 
 
 def plot_nodal_responses_animation(
@@ -612,7 +522,8 @@ def plot_nodal_responses_animation(
     resp_type: str = "disp",
     resp_dof: Union[list, tuple, str] = ("UX", "UY", "UZ"),
     unit_symbol: Optional[str] = None,
-    show_bc: bool = True,
+    unit_factor: Optional[float] = None,
+    show_bc: bool = False,
     bc_scale: float = 1.0,
     show_mp_constraint: bool = False,
     cpos: str = "iso",
@@ -647,6 +558,10 @@ def plot_nodal_responses_animation(
         ["UX", "UY", "UZ"], ["RX", "RY", "RZ"], ["RX", "RY"], ["RY", "RZ"], ["RX", "RZ"], and so on.
     unit_symbol: str, default: None
         Unit symbol to be displayed in the plot.
+    unit_factor: float, default: None
+        The multiplier used to convert units.
+        For example, if you want to visualize stress and the current data unit is kPa, you can set ``unit_symbol="kPa" and unit_factor=1.0``.
+        If you want to visualize in MPa, you can set ``unit_symbol="MPa" and unit_factor=0.001``.
     show_bc: bool, default: True
         Whether to display boundary supports.
     bc_scale: float, default: 1.0
@@ -686,7 +601,7 @@ def plot_nodal_responses_animation(
         off_screen=off_screen,
     )
     plotbase = PlotNodalResponse(model_info_steps, node_resp_steps, model_update)
-    plotbase.set_unit_symbol(unit_symbol)
+    plotbase.set_unit(symbol=unit_symbol, factor=unit_factor)
     plotbase.set_comp_resp_type(resp_type=resp_type, component=resp_dof)
     plotbase.plot_anim(
         plotter,
@@ -707,4 +622,4 @@ def plot_nodal_responses_animation(
 
     print(f"Animation has been saved to {savefig}!")
 
-    return plotbase.update(plotter, cpos)
+    return plotbase._update_plotter(plotter, cpos)

@@ -1,11 +1,9 @@
 from collections import defaultdict
+
 import numpy as np
 import openseespy.opensees as ops
 
-from opstool.utils import (
-    OPS_ELE_TAGS,
-    OPS_ELE_CLASSTAG2TYPE,
-)
+from opstool.utils import OPS_ELE_CLASSTAG2TYPE, OPS_ELE_TAGS
 
 # from pyvista import CellType
 
@@ -25,36 +23,29 @@ SOLID_CELL_TYPE_VTK = {4: 10, 8: 12, 10: 24, 20: 25, 24: 33, 27: 29}
 INT_TYPE = np.int32
 FLOAT_TYPE = np.float32
 
+
 class FEMData:
     """
     A class for collecting data in the current domain of OpenSeesPy.
     """
 
     def __init__(self) -> None:
-        self.MODEL_INFO = dict()
-        self.ELE_CELLS = dict()
-        self.ELE_CELLS_VTK = defaultdict(
-            list
-        )  # key: EleClassName, value: Element cells in VTK
-        self.ELE_CELLS_TYPE_VTK = defaultdict(
-            list
-        )  # key: EleClassName, value: Element cell type in VTK
-        self.ELE_CELLS_TAGS = defaultdict(
-            list
-        )  # key: EleClassName, value: Element tags
+        self.MODEL_INFO = {}
+        self.ELE_CELLS = {}
+        self.ELE_CELLS_VTK = defaultdict(list)  # key: EleClassName, value: Element cells in VTK
+        self.ELE_CELLS_TYPE_VTK = defaultdict(list)  # key: EleClassName, value: Element cell type in VTK
+        self.ELE_CELLS_TAGS = defaultdict(list)  # key: EleClassName, value: Element tags
         # ------------------------------------------------------------------------
         # --------------------------nodal info------------------------------------
         # ------------------------------------------------------------------------
         self.node_tags = ops.getNodeTags()
         self.unused_node_tags = []  # record unused nodal tags by this pacakge
         self.node_coords = []  # Nodal Coords
-        self.node_index = dict()  # Key: nodeTag, value: index in self.node_coords
+        self.node_index = {}  # Key: nodeTag, value: index in self.node_coords
         self.node_ndims, self.node_ndofs = [], []  # Nodal Dims, Nodal dofs
-        self.bounds, self.min_bound, self.max_bound = tuple(), 0, 0
+        self.bounds, self.min_bound, self.max_bound = (), 0, 0
         # Fixed node
-        self.fixed_node_tags = (
-            ops.getFixedNodes()
-        )  # Fixed Nodal Tags, ie, fix() commands
+        self.fixed_node_tags = ops.getFixedNodes()  # Fixed Nodal Tags, ie, fix() commands
         self.fixed_coords, self.fixed_dofs = [], []
         # Nodal load info
         self.pattern_tags = ops.getPatterns()
@@ -136,7 +127,7 @@ class FEMData:
 
     def _make_node_fixed(self):
         for tag in self.fixed_node_tags:
-            if tag in self.node_index.keys():
+            if tag in self.node_index:
                 self.fixed_coords.append(self.node_coords[self.node_index[tag]])
                 fixeddofs = ops.getFixedDOFs(tag)
                 fixities = [0] * 6
@@ -144,7 +135,7 @@ class FEMData:
                     fixities[dof - 1] = 1
                 self.fixed_dofs.append(fixities)
             else:
-                self.fixed_coords.append([np.nan]*3)
+                self.fixed_coords.append([np.nan] * 3)
                 self.fixed_dofs.append([np.nan] * 6)
 
     def _make_nodal_load(self):
@@ -161,9 +152,7 @@ class FEMData:
                 if ndm <= 2 and ndf <= 3:
                     self.node_load_data.append([data[0], data[1], 0])  # px, py, pz=0
                 else:
-                    self.node_load_data.append(
-                        [data[0], data[1], data[2]]
-                    )  # px, py, pz
+                    self.node_load_data.append([data[0], data[1], data[2]])  # px, py, pz
                 loc += ndf
         self.pattern_node_tags = np.array(self.pattern_node_tags)
 
@@ -209,7 +198,7 @@ class FEMData:
                     loc += 4
                 else:
                     pass
-                data = ntags + [wya, wyb, wza, wzb, wxa, wxb, xa, xb]
+                data = [*ntags, wya, wyb, wza, wzb, wxa, wxb, xa, xb]
                 self.ele_load_data.append(data)
                 self.pattern_ele_tags.append([pattern, tag])
         self.pattern_ele_tags = np.array(self.pattern_ele_tags)
@@ -228,11 +217,7 @@ class FEMData:
                 self.mp_pair_nodes.append([tag, tag2])
                 self.mp_cells.append([2, self.node_index[tag], self.node_index[tag2]])
                 self.mp_centers.append(
-                    (
-                        self.node_coords[self.node_index[tag]]
-                        + self.node_coords[self.node_index[tag2]]
-                    )
-                    / 2
+                    (self.node_coords[self.node_index[tag]] + self.node_coords[self.node_index[tag2]]) / 2
                 )
                 dofs = ops.getRetainedDOFs(tag, tag2)
                 fixities = [0] * 6
@@ -260,18 +245,9 @@ class FEMData:
             yaxis = ops.eleResponse(ele_tag, "ylocal")
         if not zaxis:
             zaxis = ops.eleResponse(ele_tag, "zlocal")
-        if xaxis:
-            xaxis = np.array(xaxis) / np.linalg.norm(xaxis)
-        else:
-            xaxis = np.array([0.0, 0.0, 0.0])
-        if yaxis:
-            yaxis = np.array(yaxis) / np.linalg.norm(yaxis)
-        else:
-            yaxis = np.array([0.0, 0.0, 0.0])
-        if zaxis:
-            zaxis = np.array(zaxis) / np.linalg.norm(zaxis)
-        else:
-            zaxis = np.array([0.0, 0.0, 0.0])
+        xaxis = np.array(xaxis) / np.linalg.norm(xaxis) if xaxis else np.array([0.0, 0.0, 0.0])
+        yaxis = np.array(yaxis) / np.linalg.norm(yaxis) if yaxis else np.array([0.0, 0.0, 0.0])
+        zaxis = np.array(zaxis) / np.linalg.norm(zaxis) if zaxis else np.array([0.0, 0.0, 0.0])
         return xaxis, yaxis, zaxis
 
     def _make_link_info(self, ele_tag):
@@ -295,12 +271,8 @@ class FEMData:
         self.beam_tags.append(ele_tag)
         self.beam_cells.append([2, idx_i, idx_j])
         # --------------------------------------------------------
-        self.beam_centers.append(
-            (self.node_coords[idx_i] + self.node_coords[idx_j]) / 2
-        )
-        self.beam_lengths.append(
-            np.sqrt(np.sum((self.node_coords[idx_i] - self.node_coords[idx_j]) ** 2))
-        )
+        self.beam_centers.append((self.node_coords[idx_i] + self.node_coords[idx_j]) / 2)
+        self.beam_lengths.append(np.sqrt(np.sum((self.node_coords[idx_i] - self.node_coords[idx_j]) ** 2)))
         xaxis, yaxis, zaxis = self._get_local_axis(ele_tag)
         self.beam_xaxis.append(xaxis)
         self.beam_yaxis.append(yaxis)
@@ -340,11 +312,11 @@ class FEMData:
     def _make_all_line_info(self, ele_tag, class_tag):
         idxs = [self.node_index[tag_] for tag_ in ops.eleNodes(ele_tag)[:2]]
         key = OPS_ELE_CLASSTAG2TYPE[class_tag]
-        self.ELE_CELLS_VTK[key].append([2] + idxs)
+        self.ELE_CELLS_VTK[key].append([2, *idxs])
         self.ELE_CELLS_TYPE_VTK[key].append(LINE_CELL_TYPE_VTK[2])
         self.ELE_CELLS_TAGS[key].append(ele_tag)
         self.all_line_tags.append(ele_tag)
-        self.all_line_cells.append([2] + idxs)
+        self.all_line_cells.append([2, *idxs])
 
     def _make_plane_shell_solid_info(self, ele_type: str, ele_tag, class_tag):
         ele_nodes = ops.eleNodes(ele_tag)
@@ -353,24 +325,24 @@ class FEMData:
         if class_tag in OPS_ELE_TAGS.Wall:
             idxs = [idxs[0], idxs[1], idxs[3], idxs[2]]
         # ---------------------------------------------------------------------------
-        self.ELE_CELLS_VTK[key].append([len(idxs)] + idxs)
+        self.ELE_CELLS_VTK[key].append([len(idxs), *idxs])
         self.ELE_CELLS_TAGS[key].append(ele_tag)
         self.unstru_tags.append(ele_tag)
-        self.unstru_cells.append([len(idxs)] + idxs)
+        self.unstru_cells.append([len(idxs), *idxs])
         if ele_type.lower() == "plane":
             self.ELE_CELLS_TYPE_VTK[key].append(PLANE_CELL_TYPE_VTK[len(ele_nodes)])
             self.unstru_cells_type.append(PLANE_CELL_TYPE_VTK[len(ele_nodes)])
-            self.plane_cells.append([len(idxs)] + idxs)
+            self.plane_cells.append([len(idxs), *idxs])
             self.plane_cells_type.append(PLANE_CELL_TYPE_VTK[len(ele_nodes)])
         elif ele_type.lower() == "shell":
             self.ELE_CELLS_TYPE_VTK[key].append(PLANE_CELL_TYPE_VTK[len(ele_nodes)])
             self.unstru_cells_type.append(PLANE_CELL_TYPE_VTK[len(ele_nodes)])
-            self.shell_cells.append([len(idxs)] + idxs)
+            self.shell_cells.append([len(idxs), *idxs])
             self.shell_cells_type.append(PLANE_CELL_TYPE_VTK[len(ele_nodes)])
         else:  # solid
             self.ELE_CELLS_TYPE_VTK[key].append(SOLID_CELL_TYPE_VTK[len(ele_nodes)])
             self.unstru_cells_type.append(SOLID_CELL_TYPE_VTK[len(ele_nodes)])
-            self.brick_cells.append([len(idxs)] + idxs)
+            self.brick_cells.append([len(idxs), *idxs])
             self.brick_cells_type.append(SOLID_CELL_TYPE_VTK[len(ele_nodes)])
 
     def _make_plane_info(self, ele_tag, class_tag):
@@ -447,22 +419,23 @@ class FEMData:
                 self._make_contact_info(ele_tag, class_tag)
 
         # reshape, ensure array alignment, starting with the element with the most nodes
-        def reshape_cells(cells):
-            if len(cells) > 0:
-                nums = [len(cell) for cell in cells]
-                if len(set(nums)) > 1:
-                    max_num = np.max(nums)
-                    cells = [cell + [-1] * (max_num - len(cell)) for cell in cells]
-                else:
-                    cells = cells
+        self.plane_cells = self._reshape_ele_cells(self.plane_cells)
+        self.shell_cells = self._reshape_ele_cells(self.shell_cells)
+        self.brick_cells = self._reshape_ele_cells(self.brick_cells)
+        self.unstru_cells = self._reshape_ele_cells(self.unstru_cells)
+
+    @staticmethod
+    def _reshape_ele_cells(cells):
+        if len(cells) > 0:
+            nums = [len(cell) for cell in cells]
+            if len(set(nums)) > 1:
+                max_num = np.max(nums)
+                cells = [cell + [np.nan] * (max_num - len(cell)) for cell in cells]
             else:
                 cells = cells
-            return cells
-
-        self.plane_cells = reshape_cells(self.plane_cells)
-        self.shell_cells = reshape_cells(self.shell_cells)
-        self.brick_cells = reshape_cells(self.brick_cells)
-        self.unstru_cells = reshape_cells(self.unstru_cells)
+        else:
+            cells = cells
+        return cells
 
     def _make_model_info(self):
         self._make_nodal_info()

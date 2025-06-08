@@ -3,20 +3,16 @@ This file contains functions to get data from the current domain of OpenSeesPy
 """
 
 import os
-import numpy as np
-import xarray as xr
 from typing import Union
 
-from ..utils import CONSTANTS, get_random_color
+import numpy as np
+import xarray as xr
+
+from ..utils import CONFIGS, get_random_color
 from ._get_model_data_base import FEMData
 
-RESULTS_DIR = CONSTANTS.get_output_dir()
-CONSOLE = CONSTANTS.get_console()
-PKG_PREFIX = CONSTANTS.get_pkg_prefix()
-MODEL_FILE_NAME = CONSTANTS.get_model_filename()
 
 class GetFEMData(FEMData):
-
     def __init__(self):
         super().__init__()
 
@@ -26,21 +22,11 @@ class GetFEMData(FEMData):
         if len(self.node_coords) > 0:
             node_data = xr.DataArray(
                 self.node_coords,
-                coords={
-                    "tags": self.node_tags,
-                    "coords": ["x", "y", "z"],
-                },
-                dims=["tags", "coords"]
+                coords={"nodeTags": self.node_tags, "coords": ["x", "y", "z"]},
+                dims=["nodeTags", "coords"],
             )
         else:
-            node_data = xr.DataArray(
-                self.node_coords,
-                # coords={
-                #     "tags": [],
-                #     "coords": [],
-                # },
-                # dims=["tags", "coords"],
-            )
+            node_data = xr.DataArray(self.node_coords)
         node_data.name = "NodalData"
         node_data.attrs = {
             "bounds": self.bounds,  # must tuple
@@ -59,7 +45,7 @@ class GetFEMData(FEMData):
             fixed_nodes = xr.DataArray(
                 data,
                 coords={
-                    "tags": self.fixed_node_tags,
+                    "nodeTags": self.fixed_node_tags,
                     # "dofs": ("tags", self.fixed_dofs),
                     "info": [
                         "x",
@@ -73,7 +59,7 @@ class GetFEMData(FEMData):
                         "dof6",
                     ],
                 },
-                dims=["tags", "info"],
+                dims=["nodeTags", "info"],
             )
         else:
             fixed_nodes = xr.DataArray(self.fixed_coords)
@@ -160,10 +146,7 @@ class GetFEMData(FEMData):
         if len(self.truss_cells) > 0:
             truss = xr.DataArray(
                 self.truss_cells,
-                coords={
-                    "cells": ["numNodes", "nodeI", "nodeJ"],
-                    "eleTags": self.truss_tags,
-                },
+                coords={"cells": ["numNodes", "nodeI", "nodeJ"], "eleTags": self.truss_tags},
                 dims=["eleTags", "cells"],
             )
         else:
@@ -174,16 +157,14 @@ class GetFEMData(FEMData):
     def get_links_data(self):
         if len(self.link_cells) > 0:
             lengths = np.array(self.link_lengths).reshape(-1, 1)
-            data = np.hstack(
-                (
-                    self.link_cells,
-                    lengths,
-                    self.link_centers,
-                    self.link_xaxis,
-                    self.link_yaxis,
-                    self.link_zaxis,
-                )
-            )
+            data = np.hstack((
+                self.link_cells,
+                lengths,
+                self.link_centers,
+                self.link_xaxis,
+                self.link_yaxis,
+                self.link_zaxis,
+            ))
             links = xr.DataArray(
                 data,
                 coords={
@@ -217,16 +198,14 @@ class GetFEMData(FEMData):
     def get_beams_data(self):
         if len(self.beam_cells) > 0:
             lengths = np.array(self.beam_lengths).reshape(-1, 1)
-            data = np.hstack(
-                (
-                    self.beam_cells,
-                    lengths,
-                    self.beam_centers,
-                    self.beam_xaxis,
-                    self.beam_yaxis,
-                    self.beam_zaxis,
-                )
-            )
+            data = np.hstack((
+                self.beam_cells,
+                lengths,
+                self.beam_centers,
+                self.beam_xaxis,
+                self.beam_yaxis,
+                self.beam_zaxis,
+            ))
             beams = xr.DataArray(
                 data,
                 coords={
@@ -261,10 +240,7 @@ class GetFEMData(FEMData):
         if len(self.all_line_cells) > 0:
             lines = xr.DataArray(
                 self.all_line_cells,
-                coords={
-                    "cells": ["numNodes", "nodeI", "nodeJ"],
-                    "eleTags": self.all_line_tags,
-                },
+                coords={"cells": ["numNodes", "nodeI", "nodeJ"], "eleTags": self.all_line_tags},
                 dims=["eleTags", "cells"],
             )
         else:
@@ -280,7 +256,7 @@ class GetFEMData(FEMData):
                 data,
                 coords={
                     # "cells": ["numNodes"] + [f"node{i+1}" for i in range(num-1)],
-                    "eleTags": self.shell_tags,
+                    "eleTags": self.shell_tags
                 },
                 dims=["eleTags", "cells"],
             )
@@ -295,9 +271,7 @@ class GetFEMData(FEMData):
             data = np.hstack([self.plane_cells, cell_types])
             plane = xr.DataArray(
                 data,
-                coords={
-                    "eleTags": self.plane_tags,
-                },
+                coords={"eleTags": self.plane_tags},
                 dims=["eleTags", "cells"],
             )
         else:
@@ -309,13 +283,7 @@ class GetFEMData(FEMData):
         if len(self.brick_cells) > 0:
             cell_types = np.reshape(self.brick_cells_type, (-1, 1))
             data = np.hstack([self.brick_cells, cell_types])
-            brick = xr.DataArray(
-                data,
-                coords={
-                    "eleTags": self.brick_tags,
-                },
-                dims=["eleTags", "cells"],
-            )
+            brick = xr.DataArray(data, coords={"eleTags": self.brick_tags}, dims=["eleTags", "cells"])
         else:
             brick = xr.DataArray(self.brick_cells)
         brick.name = "BrickData"
@@ -325,19 +293,8 @@ class GetFEMData(FEMData):
         if len(self.unstru_cells) > 0:
             unstru_cells_type = np.array(self.unstru_cells_type).reshape(-1, 1)
             data = np.hstack([self.unstru_cells, unstru_cells_type])
-            names = (
-                    ["numNodes"]
-                    + [f"node{i + 1}" for i in range(data.shape[1] - 2)]
-                    + ["cellType"]
-            )
-            unstru = xr.DataArray(
-                data,
-                coords={
-                    "cells": names,
-                    "eleTags": self.unstru_tags,
-                },
-                dims=["eleTags", "cells"],
-            )
+            names = ["numNodes"] + [f"node{i + 1}" for i in range(data.shape[1] - 2)] + ["cellType"]
+            unstru = xr.DataArray(data, coords={"cells": names, "eleTags": self.unstru_tags}, dims=["eleTags", "cells"])
         else:
             unstru = xr.DataArray(self.unstru_cells)
         unstru.name = "UnstructuralData"
@@ -387,16 +344,12 @@ class GetFEMData(FEMData):
         contact_data = self.get_contact_data()
         ele_centers = self.get_ele_centers_data()
         # --------------------------------------------------------------
-        all_eles = dict()
-        for key in self.ELE_CELLS_VTK.keys():
+        all_eles = {}  # all elements data, key is the element type
+        for key in self.ELE_CELLS_VTK:
             cells_type = np.array(self.ELE_CELLS_TYPE_VTK[key])
             cells_type = np.reshape(cells_type, (-1, 1))
             data = np.hstack([self.ELE_CELLS_VTK[key], cells_type])
-            names = (
-                    ["numNodes"]
-                    + [f"node{i + 1}" for i in range(data.shape[1] - 2)]
-                    + ["cellType"]
-            )
+            names = ["numNodes"] + [f"node{i + 1}" for i in range(data.shape[1] - 2)] + ["cellType"]
             all_eles[key] = xr.DataArray(
                 data,
                 coords={
@@ -447,7 +400,7 @@ class GetFEMData(FEMData):
 
 
 def save_model_data(
-        odb_tag: Union[str, int] = 1,
+    odb_tag: Union[str, int] = 1,
 ):
     """Save the model data from the current domain.
 
@@ -461,14 +414,19 @@ def save_model_data(
     odb_tag: Union[str, int], default = 1
         Output database tag, the data will be saved in ``ModelData-{odb_tag}.nc``.
     """
+    RESULTS_DIR = CONFIGS.get_output_dir()
+    CONSOLE = CONFIGS.get_console()
+    PKG_PREFIX = CONFIGS.get_pkg_prefix()
+    MODEL_FILE_NAME = CONFIGS.get_model_filename()
+
     output_filename = RESULTS_DIR + "/" + f"{MODEL_FILE_NAME}-{odb_tag}.nc"
     model_data = GetFEMData()
     model_info, cells = model_data.get_model_info()
-    model_data = dict()
-    for key in model_info.keys():
+    model_data = {}
+    for key in model_info:
         model_data[f"ModelInfo/{key}"] = xr.Dataset({key: model_info[key]})
     if len(cells) > 0:
-        for key in cells.keys():
+        for key in cells:
             model_data[f"Cells/{key}"] = xr.Dataset({key: cells[key]})
     else:
         model_data["Cells"] = xr.Dataset()
@@ -476,14 +434,12 @@ def save_model_data(
     dt.to_netcdf(output_filename, mode="w", engine="netcdf4")
     # /////////////////////////////////////
     color = get_random_color()
-    CONSOLE.print(
-        f"{PKG_PREFIX} Model data has been saved to [bold {color}]{output_filename}[/]!"
-    )
+    CONSOLE.print(f"{PKG_PREFIX} Model data has been saved to [bold {color}]{output_filename}[/]!")
 
 
 def load_model_data(
-        odb_tag: Union[str, int] = 1,
-        resave: bool = False,
+    odb_tag: Union[str, int] = 1,
+    resave: bool = False,
 ) -> tuple[dict[str, xr.DataArray], dict[str, xr.DataArray]]:
     """Get the model data from the saved file.
 
@@ -499,6 +455,11 @@ def load_model_data(
     model_info: dict[xarray.DataArray]
     cells: dict[xarray.DataArray]
     """
+    RESULTS_DIR = CONFIGS.get_output_dir()
+    CONSOLE = CONFIGS.get_console()
+    PKG_PREFIX = CONFIGS.get_pkg_prefix()
+    MODEL_FILE_NAME = CONFIGS.get_model_filename()
+
     if odb_tag is None:
         model_data = GetFEMData()
         model_info, cells = model_data.get_model_info()
@@ -510,65 +471,11 @@ def load_model_data(
             save_model_data(odb_tag=odb_tag)
         else:
             color = get_random_color()
-            CONSOLE.print(
-                f"{PKG_PREFIX} Loading model data from [bold {color}]{filename}[/] ..."
-            )
-        model_info, cells = dict(), dict()
+            CONSOLE.print(f"{PKG_PREFIX} Loading model data from [bold {color}]{filename}[/] ...")
+        model_info, cells = {}, {}
         with xr.open_datatree(filename, engine="netcdf4").load() as dt:
             for key, value in dt["ModelInfo"].items():
                 model_info[key] = value[key]
             for key, value in dt["Cells"].items():
                 cells[key] = value[key]
     return model_info, cells
-
-#
-# def save_model_data(
-#         odb_tag: Union[str, int] = 1,
-# ):
-#     """Save the model data from the current domain.
-#
-#     Parameters
-#     ----------
-#     odb_tag: Union[str, int], default = 1
-#         Output database tag, the data will be saved in ``ModelData-{odb_tag}.hdf5``.
-#     """
-#     # --------------------------------
-#     output_filename = RESULTS_DIR + "/" + f"ModelData-{odb_tag}.hdf5"
-#     model_data = FEMData()
-#     model_info, cells = model_data.get_model_info()
-#     with h5py.File(output_filename, "w") as f:
-#         grp = f.create_group("ModelInfo")
-#         for name, value in model_info.items():
-#             grp.create_dataset(name, data=value)
-#         grp = f.create_group("EleCells")
-#         for name, value in cells.items():
-#             subgrp = grp.create_group(name)
-#             for sub_name, sub_value in value.items():
-#                 subgrp.create_dataset(sub_name, data=sub_value)
-#     color = get_random_color()
-#     CONSOLE.print(
-#         f"{PKG_PREFIX} Model data has been saved to [bold {color}]{output_filename}[/]!"
-#     )
-#
-#
-# def get_model_data(odb_tag: Union[str, int] = 1):
-#     """Get the model data from the saved file.
-#
-#     Parameters
-#     ----------
-#     odb_tag: Union[str, int], default = 1
-#         Output database tag, the data that have be saved in ``ModelData-{odb_tag}.hdf5``.
-#     """
-#     filename = f"{RESULTS_DIR}/" + f"ModelData-{odb_tag}.hdf5"
-#     if not os.path.exists(filename):
-#         save_model_data(odb_tag=odb_tag)
-#     model_info, cells = dict(), defaultdict(dict)
-#     with h5py.File(filename, "r") as f:
-#         grp = f["ModelInfo"]
-#         for name, value in grp.items():
-#             model_info[name] = value[...]
-#         grp = f["EleCells"]
-#         for name, value in grp.items():
-#             for subname, subvalue in value.items():
-#                 cells[name][subname] = subvalue[...]
-#     return model_info, cells

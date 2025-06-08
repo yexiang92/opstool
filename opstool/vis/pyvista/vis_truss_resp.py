@@ -9,9 +9,6 @@ from ...utils import gram_schmidt
 from .plot_resp_base import PlotResponseBase
 from .plot_utils import (
     PLOT_ARGS,
-    _get_line_cells,
-    _get_unstru_cells,
-    _plot_all_mesh,
     # _plot_lines_cmap,
     _plot_face_cmap,
     _plot_lines,
@@ -24,22 +21,7 @@ class PlotTrussResponse(PlotResponseBase):
         super().__init__(model_info_steps, truss_resp_step, model_update)
 
     def _get_truss_data(self, step):
-        return self._get_model_data("TrussData", step)
-
-    def _plot_all_mesh(self, plotter, color="gray", step=0):
-        pos = self._get_node_data(step).to_numpy()
-        line_cells, _ = _get_line_cells(self._get_line_data(step))
-        _, unstru_cell_types, unstru_cells = _get_unstru_cells(self._get_unstru_data(step))
-
-        _plot_all_mesh(
-            plotter,
-            pos,
-            line_cells,
-            unstru_cells,
-            unstru_cell_types,
-            color=color,
-            render_lines_as_tubes=False,
-        )
+        return self._get_model_da("TrussData", step)
 
     def _set_resp_type(self, resp_type: str):
         if resp_type.lower() in ["axialforce", "force"]:
@@ -57,7 +39,7 @@ class PlotTrussResponse(PlotResponseBase):
         self.resp_type = resp_type
 
     def _make_truss_info(self, ele_tags, step):
-        pos = self._get_node_data(step).to_numpy()
+        pos = self._get_node_da(step).to_numpy()
         truss_data = self._get_truss_data(step)
         if ele_tags is None:
             truss_tags = truss_data.coords["eleTags"].values
@@ -81,12 +63,12 @@ class PlotTrussResponse(PlotResponseBase):
         if self.ModelUpdate or ele_tags is not None:
             for i in range(self.num_steps):
                 truss_tags, _, _ = self._make_truss_info(ele_tags, i)
-                da = self._get_resp_data(i, self.resp_type)
+                da = self._get_resp_da(i, self.resp_type)
                 da = da.sel(eleTags=truss_tags)
                 resps.append(da)
         else:
             for i in range(self.num_steps):
-                da = self._get_resp_data(i, self.resp_type)
+                da = self._get_resp_da(i, self.resp_type)
                 resps.append(da)
         self.resp_step = resps  # update
 
@@ -121,6 +103,8 @@ class PlotTrussResponse(PlotResponseBase):
         return cmin, cmax
 
     def _make_title(self, scalars, step, time):
+        if len(scalars) == 0:
+            scalars = np.array([0.0])
         info = {
             "title": "Truss",
             "resp_type": self.resp_type.capitalize(),
@@ -136,8 +120,8 @@ class PlotTrussResponse(PlotResponseBase):
             f"{info['max']:.3E} (max)",
             f"{info['step']}(step); {info['time']:.3f}(time)",
         ]
-        if self.unit:
-            info["unit"] = self.unit
+        if self.unit_symbol:
+            info["unit"] = self.unit_symbol
             lines.insert(2, f"{info['unit']} (unit)")
         max_len = max(len(line) for line in lines)
         padded_lines = [line.rjust(max_len) for line in lines]
@@ -145,7 +129,7 @@ class PlotTrussResponse(PlotResponseBase):
         return text + "\n"
 
     def _get_mesh_data(self, step, alpha, ele_tags):
-        n_segs = 13
+        n_segs = 10
         truss_tags, truss_coords, truss_cells = self._make_truss_info(ele_tags, step)
         resps = self.resp_step[step].to_numpy()
         resp_points, resp_cells = [], []
@@ -167,10 +151,10 @@ class PlotTrussResponse(PlotResponseBase):
             _, plot_axis, _ = gram_schmidt(xaxis, axis_up)
             coord3 = coord1 + alpha * resp * plot_axis
             coord4 = coord2 + alpha * resp * plot_axis
-            coord_upper = [coord3 + length * i * xaxis / (n_segs - 1) for i in range(n_segs)]
+            coord_upper = [coord3 + length * i * xaxis / n_segs for i in range(n_segs)]
             coord_upper += [coord4]
-            coord_lower = [coord1 + length * i * xaxis / (n_segs - 1) for i in range(13)]
-            coord_lower += [coord3]
+            coord_lower = [coord1 + length * i * xaxis / n_segs for i in range(n_segs)]
+            coord_lower += [coord2]
             for i in range(len(coord_upper) - 1):
                 resp_cells.append([
                     4,
@@ -201,8 +185,13 @@ class PlotTrussResponse(PlotResponseBase):
         alpha=1.0,
         line_width=1.5,
         style="surface",
+        color=None,
         opacity=1.0,
         cpos="iso",
+        show_outline=False,
+        show_bc: bool = True,
+        bc_scale: float = 1.0,
+        show_mp_constraint: bool = False,
     ):
         step = round(value)
         truss_coords, truss_cells, scalars, resp_points, resp_cells, labels, label_points = self._get_mesh_data(
@@ -212,7 +201,7 @@ class PlotTrussResponse(PlotResponseBase):
         plotter.clear_actors()  # !!!!!!
         if plot_all_mesh:
             self._plot_all_mesh(plotter, color="gray", step=step)
-        line_plot = _plot_lines(
+        line_grid = _plot_lines(
             plotter,
             pos=truss_coords,
             cells=truss_cells,
@@ -220,23 +209,13 @@ class PlotTrussResponse(PlotResponseBase):
             color=self.pargs.color_truss,
             render_lines_as_tubes=self.pargs.render_lines_as_tubes,
         )
-        # resp_plot = _plot_lines_cmap(
-        #     plotter,
-        #     resp_points,
-        #     resp_cells,
-        #     scalars,
-        #     width=line_width,
-        #     cmap=self.pargs.cmap,
-        #     clim=clim,
-        #     render_lines_as_tubes=self.pargs.render_lines_as_tubes,
-        #     show_scalar_bar=False,
-        # )
         opacity = 1.0 if style.lower() != "surface" else opacity
-        resp_plot = _plot_face_cmap(
+        resp_grid = _plot_face_cmap(
             plotter,
             resp_points,
             resp_cells,
             scalars,
+            color=color,
             cmap=self.pargs.cmap,
             clim=clim,
             show_edges=False,
@@ -246,14 +225,20 @@ class PlotTrussResponse(PlotResponseBase):
             show_scalar_bar=False,
         )
         title = self._make_title(scalars, step, self.time[step])
-        scalar_bar = plotter.add_scalar_bar(title=title, **self.pargs.scalar_bar_kargs)
+        scalar_bar = plotter.add_scalar_bar(title=title, **self.pargs.scalar_bar_kargs) if color is None else None
         if scalar_bar:
             title_prop = scalar_bar.GetTitleTextProperty()
             title_prop.SetJustificationToRight()
             title_prop.BoldOn()
 
+        title_grid = (
+            None
+            if scalar_bar
+            else plotter.add_text(title, position="upper_right", font_size=self.pargs.font_size - 2, font="courier")
+        )
+
         if show_values:
-            label_plot = plotter.add_point_labels(
+            label_grid = plotter.add_point_labels(
                 label_points,
                 labels,
                 # text_color="white",
@@ -266,31 +251,56 @@ class PlotTrussResponse(PlotResponseBase):
                 show_points=False,
             )
         else:
-            label_plot = None
-        self.update(plotter, cpos)
-        return line_plot, resp_plot, scalar_bar, label_plot
+            label_grid = None
 
-    def _update_mesh(self, step, alpha, ele_tags, line_plot, resp_plot, scalar_bar, label_plot, plotter):
+        if show_outline:
+            self._plot_outline(plotter)
+        bc_grid, mp_grid = None, None
+        if show_bc:
+            bc_grid = self._plot_bc(plotter, step, defo_scale=0.0, bc_scale=bc_scale)
+        if show_mp_constraint:
+            mp_grid = self._plot_mp_constraint(plotter, step, defo_scale=0.0)
+        self._update_plotter(plotter, cpos=cpos)
+        return line_grid, resp_grid, scalar_bar, title_grid, label_grid, bc_grid, mp_grid
+
+    def _update_mesh(
+        self,
+        step,
+        alpha,
+        ele_tags,
+        line_grid,
+        resp_grid,
+        scalar_bar,
+        title_grid,
+        label_grid,
+        bc_grid,
+        mp_grid,
+        bc_scale,
+        plotter,
+    ):
         step = round(step)
         truss_coords, truss_cells, scalars, resp_points, resp_cells, labels, label_points = self._get_mesh_data(
             step, alpha, ele_tags
         )
 
-        if line_plot:
-            line_plot.points = truss_coords
-            line_plot.lines = truss_cells
+        if line_grid:
+            line_grid.points = truss_coords
+            line_grid.lines = truss_cells
 
-        if resp_plot:
-            resp_plot.points = resp_points
-            # resp_plot.lines = resp_cells
-            resp_plot.faces = resp_cells
-            resp_plot["scalars"] = scalars
+        if resp_grid:
+            resp_grid.points = resp_points
+            # resp_grid.lines = resp_cells
+            resp_grid.faces = resp_cells
+            resp_grid["scalars"] = scalars
 
         if scalar_bar:
             title = self._make_title(scalars, step, self.time[step])
             scalar_bar.SetTitle(title)
 
-        if label_plot:
+        if title_grid:
+            title_grid.SetText(3, self._make_title(scalars, step, self.time[step]))
+
+        if label_grid:
             # mapper = label_plot.GetMapper()
             text_property = pv.TextProperty(
                 bold=False,
@@ -299,7 +309,7 @@ class PlotTrussResponse(PlotResponseBase):
                 color=pv.global_theme.font.color,
             )
             _update_point_label_actor(
-                label_plot,
+                label_grid,
                 label_points,
                 labels,
                 text_property=text_property,
@@ -307,6 +317,11 @@ class PlotTrussResponse(PlotResponseBase):
                 shape_opacity=0.0,
                 always_visible=False,
             )
+
+        if mp_grid:
+            self._plot_mp_constraint_update(mp_grid, step, defo_scale=0.0)
+        if bc_grid:
+            self._plot_bc_update(bc_grid, step, defo_scale=0.0, bc_scale=bc_scale)
 
     def plot_slide(
         self,
@@ -319,6 +334,11 @@ class PlotTrussResponse(PlotResponseBase):
         opacity=1.0,
         cpos="iso",
         plot_model=True,
+        show_bc: bool = True,
+        bc_scale: float = 1.0,
+        show_mp_constraint: bool = True,
+        show_outline=False,
+        color=None,
     ):
         _, clim, alpha_ = self._get_resp_peak()
         if self.ModelUpdate:
@@ -334,9 +354,14 @@ class PlotTrussResponse(PlotResponseBase):
                 style=style,
                 opacity=opacity,
                 cpos=cpos,
+                show_outline=show_outline,
+                show_bc=show_bc,
+                bc_scale=bc_scale,
+                show_mp_constraint=show_mp_constraint,
+                color=color,
             )
         else:
-            line_plot, resp_plot, scalar_bar, label_plot = self._create_mesh(
+            line_grid, resp_grid, scalar_bar, title_grid, label_grid, bc_grid, mp_grid = self._create_mesh(
                 plotter,
                 self.num_steps - 1,
                 ele_tags=ele_tags,
@@ -348,16 +373,25 @@ class PlotTrussResponse(PlotResponseBase):
                 style=style,
                 opacity=opacity,
                 cpos=cpos,
+                show_outline=show_outline,
+                show_bc=show_bc,
+                bc_scale=bc_scale,
+                show_mp_constraint=show_mp_constraint,
+                color=color,
             )
 
             func = partial(
                 self._update_mesh,
                 alpha=alpha * alpha_,
                 ele_tags=ele_tags,
-                line_plot=line_plot,
-                resp_plot=resp_plot,
+                line_grid=line_grid,
+                resp_grid=resp_grid,
                 scalar_bar=scalar_bar,
-                label_plot=label_plot,
+                title_grid=title_grid,
+                label_grid=label_grid,
+                bc_grid=bc_grid,
+                mp_grid=mp_grid,
+                bc_scale=bc_scale,
                 plotter=plotter,
             )
         plotter.add_slider_widget(func, [0, self.num_steps - 1], value=self.num_steps - 1, **self.slider_widget_args)
@@ -374,6 +408,11 @@ class PlotTrussResponse(PlotResponseBase):
         opacity=1.0,
         cpos="iso",
         plot_model=True,
+        show_bc: bool = True,
+        bc_scale: float = 1.0,
+        show_mp_constraint: bool = True,
+        show_outline=False,
+        color=None,
     ):
         step, clim, alpha_ = self._get_resp_peak(idx=step)
         self._create_mesh(
@@ -388,6 +427,11 @@ class PlotTrussResponse(PlotResponseBase):
             style=style,
             opacity=opacity,
             cpos=cpos,
+            show_outline=show_outline,
+            show_bc=show_bc,
+            bc_scale=bc_scale,
+            show_mp_constraint=show_mp_constraint,
+            color=color,
         )
 
     def plot_anim(
@@ -403,6 +447,11 @@ class PlotTrussResponse(PlotResponseBase):
         opacity=1.0,
         cpos="iso",
         plot_model=True,
+        show_bc: bool = True,
+        bc_scale: float = 1.0,
+        show_mp_constraint: bool = True,
+        show_outline=False,
+        color=None,
     ):
         if framerate is None:
             framerate = np.ceil(self.num_steps / 10)
@@ -427,10 +476,15 @@ class PlotTrussResponse(PlotResponseBase):
                     style=style,
                     opacity=opacity,
                     cpos=cpos,
+                    show_outline=show_outline,
+                    show_bc=show_bc,
+                    bc_scale=bc_scale,
+                    show_mp_constraint=show_mp_constraint,
+                    color=color,
                 )
                 plotter.write_frame()
         else:
-            line_plot, resp_plot, scalar_bar, label_plot = self._create_mesh(
+            line_grid, resp_grid, scalar_bar, title_grid, label_grid, bc_grid, mp_grid = self._create_mesh(
                 plotter,
                 0,
                 ele_tags=ele_tags,
@@ -442,6 +496,11 @@ class PlotTrussResponse(PlotResponseBase):
                 style=style,
                 opacity=opacity,
                 cpos=cpos,
+                show_outline=show_outline,
+                show_bc=show_bc,
+                bc_scale=bc_scale,
+                show_mp_constraint=show_mp_constraint,
+                color=color,
             )
             plotter.write_frame()
             for step in range(1, self.num_steps):
@@ -449,10 +508,14 @@ class PlotTrussResponse(PlotResponseBase):
                     step=step,
                     alpha=alpha * alpha_,
                     ele_tags=ele_tags,
-                    line_plot=line_plot,
-                    resp_plot=resp_plot,
+                    line_grid=line_grid,
+                    resp_grid=resp_grid,
                     scalar_bar=scalar_bar,
-                    label_plot=label_plot,
+                    title_grid=title_grid,
+                    label_grid=label_grid,
+                    bc_grid=bc_grid,
+                    mp_grid=mp_grid,
+                    bc_scale=bc_scale,
                     plotter=plotter,
                 )
                 plotter.write_frame()
@@ -465,13 +528,19 @@ def plot_truss_responses(
     step: Union[int, str] = "absMax",
     show_values: bool = True,
     resp_type: str = "axialForce",
+    color: Optional[str] = None,
     unit_symbol: Optional[str] = None,
+    unit_factor: Optional[float] = None,
     alpha: float = 1.0,
     style: str = "surface",
     line_width: float = 1.5,
     opacity: float = 1.0,
+    show_bc: bool = True,
+    bc_scale: float = 1.0,
+    show_mp_constraint: bool = False,
+    show_outline: bool = False,
     cpos: str = "iso",
-    plot_model: bool = True,
+    show_model: bool = True,
 ) -> pv.Plotter:
     """Visualizing Truss Response.
 
@@ -492,8 +561,15 @@ def plot_truss_responses(
         Whether to display the response value.
     resp_type: str, default: "axialForce"
         Response type, optional, one of ["axialForce", "axialDefo", "Stress", "Strain"].
+    color: str, default: None
+        Single color of the response graph.
+        If None, the colormap will be used.
     unit_symbol: str, default: None
         Unit symbol to be displayed in the plot.
+    unit_factor: float, default: None
+        The multiplier used to convert units.
+        For example, if you want to visualize stress and the current data unit is kPa, you can set ``unit_symbol="kPa" and unit_factor=1.0``.
+        If you want to visualize in MPa, you can set ``unit_symbol="MPa" and unit_factor=0.001``.
     alpha: float, default: 1.0
         Scale the size of the response graph.
 
@@ -510,8 +586,16 @@ def plot_truss_responses(
     cpos: str, default: iso
         Model display perspective, optional: "iso", "xy", "yx", "xz", "zx", "yz", "zy".
         If 3d, defaults to "iso". If 2d, defaults to "xy".
-    plot_model: bool, default: True
+    show_model: bool, default: True
         Whether to plot the all model or not.
+    show_bc: bool, default: True
+        Whether to display boundary supports.
+    bc_scale: float, default: 1.0
+        Scale the size of boundary support display.
+    show_mp_constraint: bool, default: False
+        Whether to show multipoint (MP) constraint.
+    show_outline: bool, default: False
+        Whether to display the outline of the model.
 
     Returns
     -------
@@ -531,7 +615,7 @@ def plot_truss_responses(
         notebook=PLOT_ARGS.notebook, line_smoothing=PLOT_ARGS.line_smoothing, off_screen=PLOT_ARGS.off_screen
     )
     plotbase = PlotTrussResponse(model_info_steps, truss_resp_step, model_update)
-    plotbase.set_unit_symbol(unit_symbol)
+    plotbase.set_unit(symbol=unit_symbol, factor=unit_factor)
     plotbase.refactor_resp_step(resp_type=resp_type, ele_tags=ele_tags)
     if slides:
         plotbase.plot_slide(
@@ -543,7 +627,12 @@ def plot_truss_responses(
             style=style,
             opacity=opacity,
             cpos=cpos,
-            plot_model=plot_model,
+            plot_model=show_model,
+            show_bc=show_bc,
+            bc_scale=bc_scale,
+            show_mp_constraint=show_mp_constraint,
+            show_outline=show_outline,
+            color=color,
         )
     else:
         plotbase.plot_peak_step(
@@ -556,11 +645,16 @@ def plot_truss_responses(
             style=style,
             opacity=opacity,
             cpos=cpos,
-            plot_model=plot_model,
+            plot_model=show_model,
+            show_bc=show_bc,
+            bc_scale=bc_scale,
+            show_mp_constraint=show_mp_constraint,
+            show_outline=show_outline,
+            color=color,
         )
     if PLOT_ARGS.anti_aliasing:
         plotter.enable_anti_aliasing(PLOT_ARGS.anti_aliasing)
-    return plotbase.update(plotter, cpos)
+    return plotbase._update_plotter(plotter, cpos)
 
 
 def plot_truss_responses_animation(
@@ -571,13 +665,19 @@ def plot_truss_responses_animation(
     off_screen: bool = True,
     show_values: bool = False,
     resp_type: str = "axialForce",
+    color: Optional[str] = None,
     unit_symbol: Optional[str] = None,
+    unit_factor: Optional[float] = None,
     alpha: float = 1.0,
     style: str = "surface",
     line_width: float = 1.5,
     opacity: float = 1.0,
     cpos: str = "iso",
-    plot_model: bool = True,
+    show_model: bool = True,
+    show_bc: bool = True,
+    bc_scale: float = 1.0,
+    show_mp_constraint: bool = False,
+    show_outline: bool = False,
 ) -> pv.Plotter:
     """Truss response animation.
 
@@ -598,8 +698,15 @@ def plot_truss_responses_animation(
         Whether to display the response value.
     resp_type: str, default: "axialForce"
         Response type, optional, one of ["axialForce", "axialDefo", "Stress", "Strain"].
+    color: str, default: None
+        Single color of the response graph.
+        If None, the colormap will be used.
     unit_symbol: str, default: None
         Unit symbol to be displayed in the plot.
+    unit_factor: float, default: None
+        The multiplier used to convert units.
+        For example, if you want to visualize stress and the current data unit is kPa, you can set ``unit_symbol="kPa" and unit_factor=1.0``.
+        If you want to visualize in MPa, you can set ``unit_symbol="MPa" and unit_factor=0.001``.
     alpha: float, default: 1.0
         Scale the size of the response graph.
 
@@ -616,8 +723,16 @@ def plot_truss_responses_animation(
     cpos: str, default: iso
         Model display perspective, optional: "iso", "xy", "yx", "xz", "zx", "yz", "zy".
         If 3d, defaults to "iso". If 2d, defaults to "xy".
-    plot_model: bool, default: True
+    show_model: bool, default: True
         Whether to plot the all model or not.
+    show_bc: bool, default: True
+        Whether to display boundary supports.
+    bc_scale: float, default: 1.0
+        Scale the size of boundary support display.
+    show_mp_constraint: bool, default: False
+        Whether to show multipoint (MP) constraint.
+    show_outline: bool, default: False
+        Whether to display the outline of the model.
 
     Returns
     -------
@@ -635,7 +750,7 @@ def plot_truss_responses_animation(
     model_info_steps, model_update, truss_resp_step = loadODB(odb_tag, resp_type="Truss")
     plotter = pv.Plotter(notebook=PLOT_ARGS.notebook, line_smoothing=PLOT_ARGS.line_smoothing, off_screen=off_screen)
     plotbase = PlotTrussResponse(model_info_steps, truss_resp_step, model_update)
-    plotbase.set_unit_symbol(unit_symbol)
+    plotbase.set_unit(symbol=unit_symbol, factor=unit_factor)
     plotbase.refactor_resp_step(resp_type=resp_type, ele_tags=ele_tags)
     plotbase.plot_anim(
         plotter,
@@ -648,9 +763,14 @@ def plot_truss_responses_animation(
         style=style,
         opacity=opacity,
         cpos=cpos,
-        plot_model=plot_model,
+        plot_model=show_model,
+        show_bc=show_bc,
+        bc_scale=bc_scale,
+        show_mp_constraint=show_mp_constraint,
+        show_outline=show_outline,
+        color=color,
     )
     if PLOT_ARGS.anti_aliasing:
         plotter.enable_anti_aliasing(PLOT_ARGS.anti_aliasing)
-    print(f"Animation saved as {savefig}!")
-    return plotbase.update(plotter, cpos)
+    print(f"Animation has been saved as {savefig}!")
+    return plotbase._update_plotter(plotter, cpos)

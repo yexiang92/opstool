@@ -1,6 +1,6 @@
 Visualization
 ==============
-
+Plotly-based and Pyvista-based visualization functions for structural analysis results.
 
 .. tab-set::
 

@@ -6,9 +6,9 @@ import numpy as np
 import pyvista as pv
 import vtk
 
-from ...utils import CONSTANTS, OPS_ELE_TYPES
+from ...utils import CONFIGS, OPS_ELE_TYPES
 
-PKG_NAME = CONSTANTS.get_pkg_name()
+PKG_NAME = CONFIGS.get_pkg_name()
 pv.global_theme.title = PKG_NAME
 
 _scalar_bar_kargs = {
@@ -41,7 +41,7 @@ PLOT_ARGS = SimpleNamespace(
     notebook=False,
     jupyter_backend="trame",
     font_family=None,
-    scale_factor=1 / 20,
+    scale_factor=1 / 15,
     show_mesh_edges=True,
     mesh_edge_color="black",
     mesh_edge_width=1.0,
@@ -483,6 +483,7 @@ def _plot_face_cmap(
     cells,
     scalars,
     cmap="jet",
+    color=None,
     clim=None,
     show_edges=True,
     edge_color="black",
@@ -497,10 +498,11 @@ def _plot_face_cmap(
     surf["scalars"] = scalars
     if clim is None:
         clim = (np.min(scalars), np.max(scalars))
+    color_args = (
+        {"color": color, "cmap": None, "scalars": None} if color is not None else {"cmap": cmap, "scalars": "scalars"}
+    )
     plotter.add_mesh(
         surf,
-        colormap=cmap,
-        scalars="scalars",
         clim=clim,
         show_edges=show_edges,
         edge_color=edge_color,
@@ -510,6 +512,7 @@ def _plot_face_cmap(
         style=style,
         show_scalar_bar=show_scalar_bar,
         render_lines_as_tubes=True,
+        **color_args,
     )
     return surf
 
@@ -558,6 +561,8 @@ def _plot_unstru_cmap(
     opacity=1.0,
     style="surface",
     show_scalar_bar=False,
+    show_origin=False,
+    pos_origin=None,
 ):
     if len(cells) == 0:
         return None
@@ -579,6 +584,16 @@ def _plot_unstru_cmap(
         style=style,
         show_scalar_bar=show_scalar_bar,
     )
+    if show_origin:
+        _plot_unstru(
+            plotter,
+            pos_origin,
+            cells,
+            cell_types,
+            color="gray",
+            style="wireframe",
+            edge_width=edge_width,
+        )
     return grid
 
 
@@ -633,6 +648,24 @@ def _plot_all_mesh_cmap(
     show_origin=False,
     pos_origin=None,
 ):
+    if show_origin:
+        _plot_lines(
+            plotter,
+            pos_origin,
+            line_cells,
+            width=edge_width,
+            color="gray",
+            render_lines_as_tubes=render_lines_as_tubes,
+        )
+        _plot_unstru(
+            plotter,
+            pos_origin,
+            unstru_cells,
+            unstru_celltypes,
+            color="gray",
+            style="wireframe",
+            edge_width=edge_width,
+        )
     if point_size > 0:
         point_plot = _plot_points_cmap(
             plotter,
@@ -672,24 +705,6 @@ def _plot_all_mesh_cmap(
         clim=clim,
         show_scalar_bar=show_scalar_bar,
     )
-    if show_origin:
-        _plot_lines(
-            plotter,
-            pos_origin,
-            line_cells,
-            width=edge_width,
-            color="gray",
-            render_lines_as_tubes=render_lines_as_tubes,
-        )
-        _plot_unstru(
-            plotter,
-            pos_origin,
-            unstru_cells,
-            unstru_celltypes,
-            color="gray",
-            style="wireframe",
-            edge_width=edge_width,
-        )
     return point_plot, line_plot, unstru_plot
 
 
@@ -707,12 +722,12 @@ def _get_unstru_cells(unstru_data):
         unstru_tags = unstru_data.coords["eleTags"]
         unstru_cell_types = np.array(unstru_data[:, -1], dtype=int)
         unstru_cells = unstru_data.to_numpy()
-        if not np.any(np.isin(unstru_cells, -1)):
+        if not np.any(np.isnan(unstru_cells)):
             unstru_cells_new = unstru_cells[:, :-1].astype(int)
         else:
             unstru_cells_new = []
             for cell in unstru_cells:
-                num = cell[0]
+                num = int(cell[0])
                 data = [num] + [int(data) for data in cell[1 : 1 + num]]
                 unstru_cells_new.extend(data)
     else:

@@ -7,12 +7,7 @@ from ._response_base import ResponseBase
 
 class SensitivityRespStepData(ResponseBase):
     def __init__(
-            self,
-            node_tags=None,
-            ele_tags=None,
-            sens_para_tags=None,
-            model_update: bool = False,
-            dtype: dict = None
+        self, node_tags=None, ele_tags=None, sens_para_tags=None, model_update: bool = False, dtype: dict = None
     ):
         self.resp_names = [
             "disp",
@@ -27,12 +22,12 @@ class SensitivityRespStepData(ResponseBase):
         self.sens_para_tags = sens_para_tags if sens_para_tags is not None else ops.getParamTags()
         self.resp_steps = None
         self.resp_steps_list = []  # for model update
-        self.resp_steps_dict = dict()  # for non-update
+        self.resp_steps_dict = {}  # for non-update
         self.times = []
         self.step_track = 0
 
         self.model_update = model_update
-        self.dtype = dict(int=np.int32, float=np.float32)
+        self.dtype = {"int": np.int32, "float": np.float32}
         if isinstance(dtype, dict):
             self.dtype.update(dtype)
 
@@ -86,7 +81,7 @@ class SensitivityRespStepData(ResponseBase):
                     "paraTags": sens_para_tags,
                     "nodeTags": node_tags,
                     "DOFs": self.DOFs,
-                    "patternTags": self.patternTags
+                    "patternTags": self.patternTags,
                 },
                 attrs=self.attrs,
             )
@@ -121,7 +116,7 @@ class SensitivityRespStepData(ResponseBase):
                     "paraTags": self.sens_para_tags,
                     "nodeTags": self.node_tags,
                     "DOFs": self.DOFs,
-                    "patternTags": self.patternTags
+                    "patternTags": self.patternTags,
                 },
                 attrs=self.attrs,
             )
@@ -144,81 +139,85 @@ class SensitivityRespStepData(ResponseBase):
             return ds
         else:
             if resp_type not in list(ds.keys()):
-                raise ValueError(
+                raise ValueError(  # noqa: TRY003
                     f"resp_type {resp_type} not found in {list(ds.keys())}"
                 )
             return ds[resp_type]
 
 
 def _get_nodal_sens_resp(node_tags, sens_para_tags, dtype):
-    all_node_tags = ops.getNodeTags()
+    all_node_tags = set(ops.getNodeTags())
+
     all_sens_disp = []
     all_sens_vel = []
     all_sens_accel = []
     all_sens_pressure = []
-    for para_tag in sens_para_tags:
-        para_tag = int(para_tag)
-        node_sens_disp = []
-        node_sens_vel = []
-        node_sens_accel = []
-        node_sens_pressure = []
-        for ntag in node_tags:
-            ntag = int(ntag)
+
+    for para_tag in map(int, sens_para_tags):
+        node_sens_disp, node_sens_vel, node_sens_accel, node_sens_pressure = [], [], [], []
+
+        for ntag in map(int, node_tags):
             if ntag in all_node_tags:
-                coord = ops.nodeCoord(ntag)
-                disp = ops.nodeDisp(ntag)
-                ndim = len(coord)
-                ndof = len(disp)
-                sens_disp = [ops.sensNodeDisp(ntag, i + 1, para_tag) for i in range(ndof)]
-                sens_vel = [ops.sensNodeVel(ntag, i + 1, para_tag) for i in range(ndof)]
-                sens_accel = [ops.sensNodeAccel(ntag, i + 1, para_tag) for i in range(ndof)]
-                if ndim == 1:
-                    sens_disp.extend([0, 0, 0, 0, 0])
-                    sens_vel.extend([0, 0, 0, 0, 0])
-                    sens_accel.extend([0, 0, 0, 0, 0])
-                elif ndim == 2:
-                    if ndof == 2:  # 2 ndim 2 dof
-                        sens_disp.extend([0, 0, 0, 0])
-                        sens_vel.extend([0, 0, 0, 0])
-                        sens_accel.extend([0, 0, 0, 0])
-                    elif ndof >= 3:  # 2 ndim 3 dof
-                        sens_disp = [sens_disp[0], sens_disp[1], 0.0, 0.0, 0.0, sens_disp[2]]
-                        sens_vel = [sens_vel[0], sens_vel[1], 0.0, 0.0, 0.0, sens_vel[2]]
-                        sens_accel = [sens_accel[0], sens_accel[1], 0.0, 0.0, 0.0, sens_accel[2]]
-                else:
-                    if ndof == 3:  # 3 ndim 3 dof
-                        sens_disp.extend([0, 0, 0])
-                        sens_vel.extend([0, 0, 0])
-                        sens_accel.extend([0, 0, 0])
-                    elif ndof == 4:  # 3 ndim 4 dof
-                        sens_disp = [sens_disp[0], sens_disp[1], sens_disp[2], 0.0, 0.0, sens_disp[3]]
-                        sens_vel = [sens_vel[0], sens_vel[1], sens_vel[2], 0.0, 0.0, sens_vel[3]]
-                        sens_accel = [sens_accel[0], sens_accel[1], sens_accel[2], 0.0, 0.0, sens_accel[3]]
-                    elif ndof < 6:  # 3 ndim 6 dof
-                        sens_disp.extend([0] * (6 - len(sens_disp)))
-                        sens_vel.extend([0] * (6 - len(sens_vel)))
-                        sens_accel.extend([0] * (6 - len(sens_accel)))
-                    elif ndof > 6:
-                        sens_disp = sens_disp[:6]
-                        sens_vel = sens_vel[:6]
-                        sens_accel = sens_accel[:6]
+                disp, vel, accel, pressure = _get_node_sensitivities(ntag, para_tag)
             else:
-                sens_disp = [np.nan] * 6
-                sens_vel = [np.nan] * 6
-                sens_accel = [np.nan] * 6
-            node_sens_disp.append(sens_disp)
-            node_sens_vel.append(sens_vel)
-            node_sens_accel.append(sens_accel)
-            node_sens_pressure.append(ops.sensNodePressure(ntag, para_tag))
+                disp = [np.nan] * 6
+                vel = [np.nan] * 6
+                accel = [np.nan] * 6
+                pressure = np.nan
+
+            node_sens_disp.append(disp)
+            node_sens_vel.append(vel)
+            node_sens_accel.append(accel)
+            node_sens_pressure.append(pressure)
+
         all_sens_disp.append(node_sens_disp)
         all_sens_vel.append(node_sens_vel)
         all_sens_accel.append(node_sens_accel)
         all_sens_pressure.append(node_sens_pressure)
-    all_sens_disp = np.array(all_sens_disp, dtype=dtype["float"])
-    all_sens_vel = np.array(all_sens_vel, dtype=dtype["float"])
-    all_sens_accel = np.array(all_sens_accel, dtype=dtype["float"])
-    all_sens_pressure = np.array(all_sens_pressure, dtype=dtype["float"])
-    return all_sens_disp, all_sens_vel, all_sens_accel, all_sens_pressure
+
+    return (
+        np.array(all_sens_disp, dtype=dtype["float"]),
+        np.array(all_sens_vel, dtype=dtype["float"]),
+        np.array(all_sens_accel, dtype=dtype["float"]),
+        np.array(all_sens_pressure, dtype=dtype["float"]),
+    )
+
+
+def _get_node_sensitivities(ntag, para_tag):
+    coord = ops.nodeCoord(ntag)
+    disp_vec = ops.nodeDisp(ntag)
+    ndim = len(coord)
+    ndof = len(disp_vec)
+
+    disp = [ops.sensNodeDisp(ntag, i + 1, para_tag) for i in range(ndof)]
+    vel = [ops.sensNodeVel(ntag, i + 1, para_tag) for i in range(ndof)]
+    accel = [ops.sensNodeAccel(ntag, i + 1, para_tag) for i in range(ndof)]
+    pressure = ops.sensNodePressure(ntag, para_tag)
+
+    disp = _standardize_response(disp, ndim, ndof)
+    vel = _standardize_response(vel, ndim, ndof)
+    accel = _standardize_response(accel, ndim, ndof)
+
+    return disp, vel, accel, pressure
+
+
+def _standardize_response(vec, ndim, ndof):
+    """Convert DOF-based vector to 6-length standard response [ux, uy, uz, rx, ry, rz]"""
+    if ndim == 1:
+        return vec + [0.0] * (6 - len(vec))
+    if ndim == 2:
+        if ndof == 2:
+            return vec + [0.0] * 4
+        if ndof >= 3:
+            return [vec[0], vec[1], 0.0, 0.0, 0.0, vec[2]]
+    if ndim == 3:
+        if ndof == 3:
+            return vec + [0.0] * 3
+        if ndof == 4:
+            return [vec[0], vec[1], vec[2], 0.0, 0.0, vec[3]]
+        if ndof < 6:
+            return vec + [0.0] * (6 - len(vec))
+    return vec[:6]
 
 
 def _get_sens_lambda(sens_para_tags, dtype):

@@ -1,40 +1,39 @@
 import warnings
-from typing import Union
+from typing import Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
 import plotly.graph_objs as go
 from matplotlib.colors import to_hex
 
+from ...post import load_model_data
+from ...utils import CONFIGS, gram_schmidt
+from .plot_resp_base import PlotResponseBase, _make_lines_arrows, _plot_bc, _plot_mp_constraint
 from .plot_utils import (
-    _plot_points,
-    _plot_lines,
-    _plot_unstru,
     PLOT_ARGS,
     _get_ele_color,
-    _VTKElementTriangulator,
-    _make_lines_plotly,
     _get_line_cells,
     _get_unstru_cells,
-    _get_plotly_dim_scene
+    _make_lines_plotly,
+    _plot_lines,
+    _plot_points,
+    _plot_unstru,
 )
-from ...post import load_model_data
-from ...utils import gram_schmidt, CONSTANTS
 
-PKG_NAME = CONSTANTS.get_pkg_name()
+PKG_NAME = CONFIGS.get_pkg_name()
 
 
-class PlotModelBase:
+class PlotModelBase(PlotResponseBase):
     def __init__(self, model_info: dict, cells: dict):
         # --------------------------------------------------------------
         self.nodal_data = model_info["NodalData"]
-        if "tags" in self.nodal_data.coords:
-            self.nodal_tags = self.nodal_data.coords["tags"].values
+        if "nodeTags" in self.nodal_data.coords:
+            self.nodal_tags = self.nodal_data.coords["nodeTags"].values
         else:
-            raise ValueError("Model have no nodal data!")
+            raise ValueError("Model have no nodal data!")  # noqa: TRY003
         self.points = self.nodal_data.to_numpy()
         self.ndims = self.nodal_data.attrs["ndims"]
-        self.show_zaxis = False if np.max(self.ndims) <= 2 else True
+        self.show_zaxis = not np.max(self.ndims) <= 2
         self.bounds = self.nodal_data.attrs["bounds"]
         self.min_bound_size = self.nodal_data.attrs["minBoundSize"]
         self.max_bound_size = self.nodal_data.attrs["maxBoundSize"]
@@ -63,23 +62,10 @@ class PlotModelBase:
         self.line_cells, self.line_tags = _get_line_cells(self.line_data)
         # -------------------------------------------------------------
         self.unstru_data = model_info["UnstructuralData"]
-        self.unstru_tags, self.unstru_cell_types, self.unstru_cells = _get_unstru_cells(
-            self.unstru_data
-        )
+        self.unstru_tags, self.unstru_cell_types, self.unstru_cells = _get_unstru_cells(self.unstru_data)
         # -------------------------------------------------------------
         self.pargs = PLOT_ARGS
         self.FIGURE = go.Figure()
-
-    @staticmethod
-    def _get_plotly_unstru_data(points, unstru_cell_types, unstru_cells):
-        grid = _VTKElementTriangulator(points)
-        for cell_type, cell in zip(unstru_cell_types, unstru_cells):
-            grid.add_cell(cell_type, cell)
-        return grid.get_results()
-
-    @staticmethod
-    def _get_plotly_line_data(points, line_cells):
-        return _make_lines_plotly(points, line_cells)
 
     def plot_model_one_color(
         self,
@@ -95,9 +81,7 @@ class PlotModelBase:
                 face_veci,
                 face_vecj,
                 face_veck,
-            ) = self._get_plotly_unstru_data(
-                self.points, self.unstru_cell_types, self.unstru_cells
-            )
+            ) = self._get_plotly_unstru_data(self.points, self.unstru_cell_types, self.unstru_cells)
             _plot_unstru(
                 plotter,
                 pos=face_points,
@@ -115,9 +99,7 @@ class PlotModelBase:
                 hoverinfo="skip",
             )
         if len(self.line_data) > 0:
-            line_points, line_mid_points = self._get_plotly_line_data(
-                self.points, self.line_cells
-            )
+            line_points, line_mid_points = self._get_plotly_line_data(self.points, self.line_cells)
             _plot_lines(
                 plotter,
                 pos=line_points,
@@ -166,9 +148,7 @@ class PlotModelBase:
             for i, name in enumerate(self.ele_types):
                 cell = np.array(self.ele_data_types[name][:, :-1], dtype=int)
                 if cell[0, 0] == 2:
-                    line_points, line_mid_points = self._get_plotly_line_data(
-                        self.points, cell
-                    )
+                    line_points, line_mid_points = self._get_plotly_line_data(self.points, cell)
                     _plot_lines(
                         plotter,
                         pos=line_points,
@@ -221,7 +201,7 @@ class PlotModelBase:
                 y=y,
                 z=z,
                 text=node_labels,
-                textfont=dict(color="#6e750e", size=self.pargs.font_size),
+                textfont={"color": "#6e750e", "size": self.pargs.font_size},
                 mode="text",
                 name="Node Tag",
             )
@@ -240,17 +220,17 @@ class PlotModelBase:
                 y=ele_centers[:, 1],
                 z=ele_centers[:, 2],
                 text=ele_labels,
-                textfont=dict(color="#650021", size=self.pargs.font_size),
+                textfont={"color": "#650021", "size": self.pargs.font_size},
                 mode="text",
                 name="Element Tag",
             )
             plotter.append(txt_plot)
 
-    def plot_bc(self, plotter: list, alpha: float = 1.0):
+    def plot_bc(self, plotter: list, alpha: float = 1.0, points_new=None):
         if len(self.fixed_node_data) > 0:
             fixed_data = self.fixed_node_data.to_numpy()
             fixed_dofs = fixed_data[:, -6:].astype(int)
-            fixed_coords = fixed_data[:, :3]
+            fixed_coords = points_new if points_new is not None else fixed_data[:, :3]
             s = (self.max_bound_size + self.min_bound_size) / 100 * alpha
             bc_plot = _plot_bc(
                 plotter,
@@ -281,9 +261,7 @@ class PlotModelBase:
             else:
                 xaxis = np.array(coord2 - coord1)
                 global_z = [0.0, 0.0, 1.0]
-                cos_angle = xaxis.dot(global_z) / (
-                    np.linalg.norm(xaxis) * np.linalg.norm(global_z)
-                )
+                cos_angle = xaxis.dot(global_z) / (np.linalg.norm(xaxis) * np.linalg.norm(global_z))
                 if np.abs(1 - cos_angle**2) < 1e-10:
                     yaxis = np.cross([-1.0, 0.0, 0.0], xaxis)
                 else:
@@ -293,16 +271,14 @@ class PlotModelBase:
                 idx = len(points_nonzero)
                 for i in range(5):
                     cells_nonzero.extend([2, idx + i, idx + i + 1])
-                points_nonzero.extend(
-                    [
-                        coord1 + 0.25 * length * xaxis,
-                        coord1 + 0.25 * length * xaxis + 0.25 * length * yaxis,
-                        coord1 + 0.5 * length * xaxis - 0.25 * length * yaxis,
-                        coord1 + 0.5 * length * xaxis + 0.25 * length * yaxis,
-                        coord1 + 0.75 * length * xaxis - 0.25 * length * yaxis,
-                        coord1 + 0.75 * length * xaxis,
-                    ]
-                )
+                points_nonzero.extend([
+                    coord1 + 0.25 * length * xaxis,
+                    coord1 + 0.25 * length * xaxis + 0.25 * length * yaxis,
+                    coord1 + 0.5 * length * xaxis - 0.25 * length * yaxis,
+                    coord1 + 0.5 * length * xaxis + 0.25 * length * yaxis,
+                    coord1 + 0.75 * length * xaxis - 0.25 * length * yaxis,
+                    coord1 + 0.75 * length * xaxis,
+                ])
         # plot
         if len(points_zero) > 0:
             points_zero = np.array(points_zero)
@@ -311,9 +287,7 @@ class PlotModelBase:
                     x=points_zero[:, 0],
                     y=points_zero[:, 1],
                     z=points_zero[:, 2],
-                    marker=dict(
-                        size=self.pargs.point_size * 2, color=self.pargs.color_link
-                    ),
+                    marker={"size": self.pargs.point_size * 2, "color": self.pargs.color_link},
                     mode="markers",
                     hoverinfo="skip",
                 )
@@ -328,9 +302,7 @@ class PlotModelBase:
                     x=x,
                     y=y,
                     z=z,
-                    line=dict(
-                        color=self.pargs.color_link, width=self.pargs.line_width / 2
-                    ),
+                    line={"color": self.pargs.color_link, "width": self.pargs.line_width / 2},
                     mode="lines",
                     connectgaps=False,
                     hoverinfo="skip",
@@ -389,7 +361,7 @@ class PlotModelBase:
             )
 
         else:
-            warnings.warn("Model has no frame elements when show_local_crd=True!")
+            warnings.warn("Model has no frame elements when show_local_crd=True!", stacklevel=2)
 
     def plot_link_local_axes(self, plotter: list, alpha: float = 1.0):
         if len(self.link_data) == 0:
@@ -618,10 +590,7 @@ class PlotModelBase:
     def plot_mp_constraint(self, plotter: list, show_dofs=False, points_new=None):
         if len(self.mp_constraint_data) == 0:
             return None
-        if points_new is None:
-            points = self.points
-        else:
-            points = points_new
+        points = self.points if points_new is None else points_new
         cells = self.mp_constraint_data.to_numpy()[:, :3].astype(int)
         dofs = self.mp_constraint_data.to_numpy()[:, -6:].astype(int)
         # midcoords = self.mp_constraint_data.to_numpy()[:, 3:6]
@@ -638,35 +607,33 @@ class PlotModelBase:
     def update_fig(self, plotter: list, show_outline: bool = False):
         self.FIGURE.add_traces(plotter)
         if not self.show_zaxis:
-            scene = _get_plotly_dim_scene(mode="2d", show_outline=show_outline)
+            scene = self._get_plotly_dim_scene(mode="2d", show_outline=show_outline)
         else:
-            scene = _get_plotly_dim_scene(mode="3d", show_outline=show_outline)
+            scene = self._get_plotly_dim_scene(mode="3d", show_outline=show_outline)
         txt = f"<b>{PKG_NAME}</b>:: Num. Node: <b>{len(self.nodal_tags)}</b> Num. Ele: <b>{len(self.ele_tags)}</b>"
         self.FIGURE.update_layout(
             template=self.pargs.theme,
             autosize=True,
             showlegend=False,
             scene=scene,
-            title=dict(
-                font=dict(
-                    family="courier", color="black", size=self.pargs.title_font_size
-                ),
-                text=txt,
-            ),
+            title={
+                "font": {"family": "courier", "size": self.pargs.title_font_size},
+                "text": txt,
+            },
             width=self.pargs.window_size[0],
             height=self.pargs.window_size[1],
-            font=dict(family=self.pargs.font_family),
+            font={"family": self.pargs.font_family},
         )
         return self.FIGURE
 
 
 def plot_model(
-    odb_tag: Union[int, str] = None,
+    odb_tag: Optional[Union[int, str]] = None,
     show_node_numbering: bool = False,
     show_ele_numbering: bool = False,
     show_ele_hover: bool = True,
     style: str = "surface",
-    color: str = None,
+    color: Optional[str] = None,
     show_bc: bool = True,
     bc_scale: float = 1.0,
     show_link: bool = True,
@@ -678,7 +645,7 @@ def plot_model(
     show_local_axes: bool = False,
     local_axes_scale: float = 1.0,
     show_outline: bool = True,
-):
+) -> go.Figure:
     """
     Geometric model visualization based on ``plotly``.
 
@@ -729,7 +696,7 @@ def plot_model(
         You can also use `fig.write_html("path/to/file.html")` to save as an HTML file, see
         `Interactive HTML Export in Python <https://plotly.com/python/interactive-html-export/>`_
     """
-    resave = True if odb_tag is None else False
+    resave = odb_tag is None
     model_info, cells = load_model_data(odb_tag, resave=resave)
     plotbase = PlotModelBase(model_info, cells)
     plotter = []
@@ -760,181 +727,3 @@ def plot_model(
     if show_ele_loads:
         plotbase.plot_ele_load(plotter, load_scale)
     return plotbase.update_fig(plotter, show_outline)
-
-
-def _get_bc_points(fixed_coords, fixed_dofs, s, show_zaxis):
-    fixed_dofs = ["".join(map(str, row)) for row in fixed_dofs]
-    D2 = False if show_zaxis else True
-    points = []
-    for coord, dof in zip(fixed_coords, fixed_dofs):
-        x, y, z = coord
-        if D2:
-            z += s / 2
-            y -= s / 2
-        if dof[0] == "1":
-            points.extend(
-                [
-                    [x, y - s / 2, z - s / 2],
-                    [x, y + s / 2, z - s / 2],
-                    [x, y + s / 2, z + s / 2],
-                    [x, y - s / 2, z + s / 2],
-                    [x, y - s / 2, z - s / 2],
-                    [np.nan, np.nan, np.nan],
-                ]
-            )
-        if dof[1] == "1":
-            points.extend(
-                [
-                    [x - s / 2, y, z - s / 2],
-                    [x + s / 2, y, z - s / 2],
-                    [x + s / 2, y, z + s / 2],
-                    [x - s / 2, y, z + s / 2],
-                    [x - s / 2, y, z - s / 2],
-                    [np.nan, np.nan, np.nan],
-                ]
-            )
-        if dof[2] == "1":
-            points.extend(
-                [
-                    [x - s / 2, y - s / 2, z],
-                    [x + s / 2, y - s / 2, z],
-                    [x + s / 2, y + s / 2, z],
-                    [x - s / 2, y + s / 2, z],
-                    [x - s / 2, y - s / 2, z],
-                    [np.nan, np.nan, np.nan],
-                ]
-            )
-    return np.array(points)
-
-
-def _plot_bc(plotter, fixed_dofs, fixed_coords, s, show_zaxis, color):
-    bc_plot = None
-    if len(fixed_coords) > 0:
-        points = _get_bc_points(fixed_coords, fixed_dofs, s, show_zaxis)
-        bc_plot = _plot_lines(
-            plotter,
-            points,
-            width=1.0,
-            name="BC",
-            color=color,
-            hoverinfo="skip",
-        )
-    # else:
-    #     warnings.warn("Info:: Model has no fixed nodes!")
-    return bc_plot
-
-
-def _plot_mp_constraint(
-    plotter,
-    points,
-    cells,
-    dofs,
-    lw,
-    color,
-    show_dofs=False,
-):
-    dofs = ["".join(map(str, row)) for row in dofs]
-    if len(cells) > 0:
-        line_points, line_mid_points = _make_lines_plotly(points, cells)
-        x, y, z = line_points[:, 0], line_points[:, 1], line_points[:, 2]
-        plotter.append(
-            go.Scatter3d(
-                x=x,
-                y=y,
-                z=z,
-                line=dict(color=color, width=lw),
-                mode="lines",
-                name="mp constraint",
-                connectgaps=False,
-                hoverinfo="skip",
-            )
-        )
-        if show_dofs:
-            x, y, z = [line_mid_points[:, j] for j in range(3)]
-            txt_plot = go.Scatter3d(
-                x=x,
-                y=y,
-                z=z,
-                text=dofs,
-                textfont=dict(color=color, size=12),
-                mode="text",
-                name="constraint dofs",
-            )
-            plotter.append(txt_plot)
-
-
-def _make_lines_arrows(
-    starts,
-    lengths,
-    xaxis,
-    yaxis,
-    zaxis,
-    color,
-    name,
-    hovers,
-    lw,
-    arrow_height,
-    arrow_width,
-):
-    coords = np.zeros_like(starts)
-    for i, midpoint in enumerate(starts):
-        coords[i] = midpoint + lengths[i] * xaxis[i]
-    local_points = []
-    labels = []
-    for i, midpoint in enumerate(starts):
-        local_points.append(midpoint)
-        local_points.append(coords[i])
-        local_points.append([np.nan, np.nan, np.nan])
-        labels.extend([hovers[i]] * 3)
-    local_points = np.array(local_points)
-    line = go.Scatter3d(
-        x=local_points[:, 0],
-        y=local_points[:, 1],
-        z=local_points[:, 2],
-        line=dict(color=color, width=lw),
-        mode="lines",
-        connectgaps=False,
-        name=name,
-        hovertemplate="<b>%{text}</b>",
-        text=labels,
-        # hoverinfo="skip",
-    )
-    # arrows
-    angles = np.linspace(0, 2 * np.pi, 16)
-    num = len(starts)
-    points = []
-    ijk = []
-    labels = []
-    for i in range(num):
-        xs = (0.5 * arrow_width[i] * np.cos(angles)).reshape((-1, 1))
-        ys = (0.5 * arrow_width[i] * np.sin(angles)).reshape((-1, 1))
-        cen, ax, ay, az = coords[i], xaxis[i], yaxis[i], zaxis[i]
-        tips = cen + arrow_height[i] * ax
-        secs = xs @ np.reshape(ay, (1, 3)) + ys @ np.reshape(az, (1, 3))
-        secs += cen
-        for j in range(len(secs) - 1):
-            ijk.append([len(points) + j, len(points) + j + 1, len(points) + len(secs)])
-            ijk.append(
-                [len(points) + j, len(points) + j + 1, len(points) + len(secs) + 1]
-            )
-        ijk.append([len(points) + len(secs) - 1, len(points), len(points) + len(secs)])
-        ijk.append(
-            [len(points) + len(secs) - 1, len(points), len(points) + len(secs) + 1]
-        )
-        points.extend(np.vstack([secs, cen, tips]))
-        labels.extend([hovers[i]] * (len(secs) + 2))
-    points = np.array(points)
-    ijk = np.array(ijk)
-    arrow = go.Mesh3d(
-        x=points[:, 0],
-        y=points[:, 1],
-        z=points[:, 2],
-        i=ijk[:, 0],
-        j=ijk[:, 1],
-        k=ijk[:, 2],
-        color=color,
-        name=name,
-        text=labels,
-        hovertemplate="<b>%{text}",
-    )
-    return line, arrow
