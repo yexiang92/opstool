@@ -15,7 +15,9 @@ def create_gravity_load(
     See the blog `Do It Your Self-Weight <https://portwooddigital.com/2023/11/05/do-it-your-self-weight/>`_ for more details.
 
     .. Note::
-        This function is a modification of the method described in the previous blog post, which relaxes the restrictions on imposing constraints. This means you can impose constraints at any position.
+        * This function is a modification of the method described in the previous blog post, which relaxes the restrictions on imposing constraints. This means you can impose constraints at any position.
+        * This function invokes the OpenSees ``load`` command, which applies the loads to the nodes in the model, and the function does not check if the ``timeSeries`` and ``pattern`` are defined, so make sure to define them before calling this function.
+        * The mass values are derived from the mass matrix, which is obtained from the :func:`opstool.pre.get_node_mass`. The function assumes that the mass matrix is defined and available in the model.
 
     Parameters
     -----------
@@ -35,6 +37,12 @@ def create_gravity_load(
     node_loads : dict[int, list[float]]
         A dictionary where keys are node tags and values are the gravity loads applied to those nodes.
         The loads are in the form of a list, with the load in the specified direction and zeros in other directions.
+
+    Examples
+    ---------
+    >>> ops.timeSeries("Constant", 1)  # Define a constant time series
+    >>> ops.pattern("Plain", 1, 1)  # Define a load pattern
+    >>> node_loads = create_gravity_load(direction='Z', factor=-9.81)
     """
     direction = direction.upper()
     if direction not in ["X", "Y", "Z"]:
