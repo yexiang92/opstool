@@ -31,7 +31,7 @@ def get_node_mass() -> dict:
         ndofs = ops.getNDF(ntag)[0]
         mass = []
         for _ in range(ndofs):
-            mass.append(M[i])
+            mass.append(float(M[i]))
             i += 1
         node_mass[ntag] = mass
     return node_mass
