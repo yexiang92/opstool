@@ -14,6 +14,7 @@ from ._util_funcs import (
     suppress_ops_print,
 )
 from .consts import CONFIGS
+from .ele_shape_func import get_gp2node_func, get_shape_func
 from .ops_ele_class_tags import OPS_ELE_CLASSTAG2TYPE, OPS_ELE_TAGS, OPS_ELE_TYPES
 
 _check_odb_path()
@@ -42,3 +43,5 @@ __all__ = [
     "set_odb_path",
     "suppress_ops_print",
 ]
+
+__all__ += ["get_gp2node_func", "get_shape_func"]
