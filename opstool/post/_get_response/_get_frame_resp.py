@@ -92,7 +92,7 @@ class FrameRespStepData(ResponseBase):
         )
         plastic_defos = _get_beam_basic_resp(ele_tags, ("plasticRotation", "plasticDeformation"), dtype=self.dtype)
         sec_f, sec_d, sec_locs = _get_beam_sec_resp(
-            ele_tags, ele_load_data, local_forces, self.elastic_frame_sec_points, dtype=self.dtype
+            ele_tags, ele_load_data, local_forces, basic_defos, self.elastic_frame_sec_points, dtype=self.dtype
         )
         if self.sec_loc_dofs is None:
             if sec_locs.shape[-1] == 2:
@@ -294,18 +294,24 @@ def _get_beam_basic_resp(beam_tags, resp_types, dtype):
     return np.array(basic_resps, dtype=dtype["float"])
 
 
-def _get_beam_sec_resp(beam_tags, ele_load_data, local_forces, n_secs_elastic_beam, dtype):
+def _get_beam_sec_resp(beam_tags, ele_load_data, local_forces, basic_disp, n_secs_elastic_beam, dtype):
     pattern_tags, load_eletags = _extract_pattern_info(ele_load_data)
     beam_secF, beam_secD, beam_locs = [], [], []
 
     beam_lengths, start_coords, end_coords = _get_ele_length(beam_tags)
 
-    for eletag, length, local_f in zip(beam_tags, beam_lengths, local_forces):
+    for eletag, length, local_f, basic_d in zip(beam_tags, beam_lengths, local_forces, basic_disp):
         eletag = int(eletag)
         if ops.getEleClassTags(eletag)[0] in ELASTIC_BEAM_CLASSES:
             xlocs = np.linspace(0, 1.0, n_secs_elastic_beam)
             sec_f = _get_sec_forces(eletag, length, ele_load_data, pattern_tags, load_eletags, local_f, xlocs)
+            # sec defo
+            xi6, oneOverL = 6 * xlocs, 1.0 / length
             sec_d = np.zeros_like(sec_f)
+            sec_d[:, 0] = basic_d[0] * oneOverL  # N
+            sec_d[:, 1] = oneOverL * ((xi6 - 4.0) * basic_d[1] + (xi6 - 2.0) * basic_d[2])  # MZ
+            sec_d[:, 3] = oneOverL * ((xi6 - 4.0) * basic_d[3] + (xi6 - 2.0) * basic_d[4])  # MY
+            sec_d[:, 5] = oneOverL * basic_d[5]
         else:
             xlocs, sec_f, sec_d = _get_nonlinear_section_response(eletag, length)
 
