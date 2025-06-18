@@ -102,6 +102,58 @@ def get_gp2node_func(ele_type: str, n: int, gp: int) -> object:
     return cls.project_to_nodes if cls else None
 
 
+def get_shell_gp2node_func(ele_type: str, n: int, gp: int) -> object:
+    """Get Gauss points response to nodes projection function by element type, num nodes, and num Gauss points.
+
+    * ("tri", 3, 1) for 3-node triangle with 1 Gauss point, ASDShellT3.
+    * ("tri", 3, 3) for 3-node triangle with 3 Gauss points, ASDShellT3.
+    * ("tri", 3, 4) for 3-node triangle with 4 Gauss points, ShellDKGT and ShellNLDKGT.
+    * ("quad", 4, 4) for 4-node quadrilateral with 4 Gauss points, ASDShellQ4, ShellDKGQ, ShellNLDKGQ and ShellMITC4.
+    * ("quad", 9, 9) for 9-node quadrilateral with 9 Gauss points, ShellMITC9.
+
+    Parameters
+    ----------
+    ele_type: str
+        Element type, e.g., "tri", "quad"
+    n: int
+        Number of nodes.
+        For triangles: 3.
+        For quadrilaterals: 4, or 9.
+    gp: int
+        Number of Gauss points.
+        For triangles: 1, 3, or 4.
+        For quadrilaterals: 4 or 9.
+
+    Returns
+    -------
+    weight_func: function object.
+        Function to project Gauss point responses to nodes.
+        It takes two arguments (method, gp_resp).
+
+        method: str
+            Method to project Gauss point responses to nodes.
+            * If "extrapolate", use extrapolation method by element shape function.
+            * If "average", use weighted averaging method, weight is the Gauss point weight.
+            * If "copy", use copy method, copy the nearest Gauss point responses to nodes.
+
+        gp_resp: np.ndarray
+            Gauss point responses, shape[n, m], where n is the number of Gauss points,
+            m is the number of responses at each Gauss point.
+    """
+    ele_type = ele_type.lower()
+
+    weight_map = {
+        ("tri", 3, 1): FEshellN3GP1(),
+        ("tri", 3, 3): FEshellN3GP3(),
+        ("tri", 3, 4): FEshellN3GP4(),
+        ("quad", 4, 4): FEshellN4GP4(),
+        ("quad", 9, 9): FEshellN9GP9(),
+    }
+
+    cls = weight_map.get((ele_type, n, gp))
+    return cls.project_to_nodes if cls else None
+
+
 class FEtriN3GP1:
     """Topology:
 
@@ -124,11 +176,13 @@ class FEtriN3GP1:
         self.num_nodes = 3
 
     def project_to_nodes(self, method: str, gp_resp: np.ndarray) -> np.ndarray:
-        resp = np.ravel(gp_resp)
-        resp_new = np.zeros((self.num_nodes, len(resp)))
-        for i in range(self.num_nodes):
-            resp_new[i] = resp
-        return resp_new
+        weights = np.array([[1.0], [1.0], [1.0]])
+        if gp_resp.ndim == 2:
+            return np.dot(weights, gp_resp)
+        elif gp_resp.ndim == 3:
+            return np.einsum("ng,gfr->nfr", weights, gp_resp)
+        else:
+            raise ValueError("gp_resp must be 2D or 3D array.")  # noqa: TRY003
 
     @staticmethod
     def shape_func(r: float, s: float) -> np.ndarray:
@@ -215,7 +269,12 @@ class FEtriN6GP3:
                 [0.0, 0.5, 0.5],  # N5 ← G2-G3 Midpoint
                 [0.5, 0.0, 0.5],  # N6 ← G3-G1 Midpoint
             ])
-        return np.dot(weights, gp_resp)
+        if gp_resp.ndim == 2:
+            return np.dot(weights, gp_resp)
+        elif gp_resp.ndim == 3:
+            return np.einsum("ng,gfr->nfr", weights, gp_resp)
+        else:
+            raise ValueError("gp_resp must be 2D or 3D array.")  # noqa: TRY003
 
     @staticmethod
     def shape_func(r: float, s: float) -> np.ndarray:
@@ -300,7 +359,12 @@ class FEquadN4GP4:
                 [0.0, 0.0, 1.0, 0.0],  # N3 ← G3
                 [0.0, 0.0, 0.0, 1.0],  # N4 ← G4
             ])
-        return np.dot(weights, gp_resp)
+        if gp_resp.ndim == 2:
+            return np.dot(weights, gp_resp)
+        elif gp_resp.ndim == 3:
+            return np.einsum("ng,gfr->nfr", weights, gp_resp)
+        else:
+            raise ValueError("gp_resp must be 2D or 3D array.")  # noqa: TRY003
 
     @staticmethod
     def shape_func(r: float, s: float) -> np.ndarray:
@@ -428,7 +492,12 @@ class FEquadN9GP9:
             weights = np.tile(self.gp_wts / np.sum(self.gp_wts), (self.num_nodes, 1))
         elif method.startswith("copy"):
             weights = np.eye(self.num_nodes)
-        return np.dot(weights, gp_resp)
+        if gp_resp.ndim == 2:
+            return np.dot(weights, gp_resp)
+        elif gp_resp.ndim == 3:
+            return np.einsum("ng,gfr->nfr", weights, gp_resp)
+        else:
+            raise ValueError("gp_resp must be 2D or 3D array.")  # noqa: TRY003
 
     @staticmethod
     def shape_func(r: float, s: float) -> np.ndarray:
@@ -561,7 +630,12 @@ class FEquadN8GP9:
             weights = np.tile(self.gp_wts / np.sum(self.gp_wts), (self.num_nodes, 1))
         elif method.startswith("copy"):
             weights = np.eye(9)[: self.num_nodes]
-        return np.dot(weights, gp_resp)
+        if gp_resp.ndim == 2:
+            return np.dot(weights, gp_resp)
+        elif gp_resp.ndim == 3:
+            return np.einsum("ng,gfr->nfr", weights, gp_resp)
+        else:
+            raise ValueError("gp_resp must be 2D or 3D array.")  # noqa: TRY003
 
     @staticmethod
     def shape_func(r: float, s: float) -> np.ndarray:
@@ -647,11 +721,13 @@ class FEtetN4GP1:
         np.ndarray
             Projected responses at nodes, shape[4, m], where 4 is the number of nodes.
         """
-        resp = np.ravel(gp_resp)
-        resp_new = np.zeros((self.num_nodes, len(resp)))
-        for i in range(self.num_nodes):
-            resp_new[i] = resp
-        return resp_new
+        weights = np.array([[1.0], [1.0], [1.0], [1.0]])
+        if gp_resp.ndim == 2:
+            return np.dot(weights, gp_resp)
+        elif gp_resp.ndim == 3:
+            return np.einsum("ng,gfr->nfr", weights, gp_resp)
+        else:
+            raise ValueError("gp_resp must be 2D or 3D array.")  # noqa: TRY003
 
     @staticmethod
     def shape_func(r: float, s: float, t: float) -> np.ndarray:
@@ -742,7 +818,12 @@ class FEtetN10GP4:
                 [0.0, 1.0, 0.0, 0.0],
                 [1.0, 0.0, 0.0, 0.0],
             ])
-        return np.dot(weights, gp_resp)
+        if gp_resp.ndim == 2:
+            return np.dot(weights, gp_resp)
+        elif gp_resp.ndim == 3:
+            return np.einsum("ng,gfr->nfr", weights, gp_resp)
+        else:
+            raise ValueError("gp_resp must be 2D or 3D array.")  # noqa: TRY003
 
     @staticmethod
     def shape_func(r: float, s: float, t: float) -> np.ndarray:
@@ -833,7 +914,12 @@ class FEbrickN8GP8:
             weights = np.tile(self.gp_wts / np.sum(self.gp_wts), (self.num_nodes, 1))
         elif method.startswith("copy"):
             weights = np.eye(self.num_nodes)
-        return np.dot(weights, gp_resp)
+        if gp_resp.ndim == 2:
+            return np.dot(weights, gp_resp)
+        elif gp_resp.ndim == 3:
+            return np.einsum("ng,gfr->nfr", weights, gp_resp)
+        else:
+            raise ValueError("gp_resp must be 2D or 3D array.")  # noqa: TRY003
 
     @staticmethod
     def shape_func(r: float, s: float, t: float) -> np.ndarray:
@@ -944,7 +1030,12 @@ class FEbrickN20GP27:
             weights = np.tile(self.gp_wts / np.sum(self.gp_wts), (self.num_nodes, 1))
         elif method.startswith("copy"):
             weights = np.eye(27)[: self.num_nodes]
-        return np.dot(weights, gp_resp)
+        if gp_resp.ndim == 2:
+            return np.dot(weights, gp_resp)
+        elif gp_resp.ndim == 3:
+            return np.einsum("ng,gfr->nfr", weights, gp_resp)
+        else:
+            raise ValueError("gp_resp must be 2D or 3D array.")  # noqa: TRY003
 
     @staticmethod
     def shape_func(r: float, s: float, t: float) -> np.ndarray:
@@ -1029,7 +1120,12 @@ class FEbrickN27GP27:
             weights = np.tile(self.gp_wts / np.sum(self.gp_wts), (self.num_nodes, 1))
         elif method.startswith("copy"):
             weights = np.eye(self.num_nodes)
-        return np.dot(weights, gp_resp)
+        if gp_resp.ndim == 2:
+            return np.dot(weights, gp_resp)
+        elif gp_resp.ndim == 3:
+            return np.einsum("ng,gfr->nfr", weights, gp_resp)
+        else:
+            raise ValueError("gp_resp must be 2D or 3D array.")  # noqa: TRY003
 
     @staticmethod
     def shape_func(r: float, s: float, t: float) -> np.ndarray:
@@ -1078,12 +1174,90 @@ class FEbrickN27GP27:
         return H
 
 
-# TRI31
-# SixNodeTri GP-idx : [2, 0, 1]
-# FourNodeQuad GP-idx : [0, 1, 2, 3]
-# NineNodeQuad GP-idx : [0, 1, 2, 3, 4, 5, 6, 7, 8]
-# NineNodeMixedQuad GP-idx : [0, 6, 8, 2, 3, 7, 5, 1, 4]
-# EightNodeQuad GP-idx : [0, 1, 2, 3, 4, 5, 6, 7, 8]
+class FEshellN3GP1(FEtriN3GP1):  # ASDShellT3
+    def __init__(self):
+        super().__init__()
+
+
+class FEshellN3GP3(FEtriN3GP1):  # ASDShellT3
+    def __init__(self):
+        self.gp_rs = np.array([0.5, 0.0, 0.5])
+        self.gp_ss = np.array([0.5, 0.5, 0.0])
+        self.gp_wts = np.array([1.0 / 6.0, 1.0 / 6.0, 1.0 / 6.0])
+
+        self.node_rs = np.array([0.0, 1.0, 0.0])
+        self.node_ss = np.array([0.0, 0.0, 1.0])
+
+        self.num_nodes = 3
+
+    def project_to_nodes(self, method: str, gp_resp: np.ndarray) -> np.ndarray:
+        method = method.lower()
+        if method.startswith("extra"):
+            weights = np.array([
+                [0.261204, 0.369398, 0.369398],
+                [0.328227, 0.207589, 0.464183],
+                [0.328227, 0.464183, 0.207589],
+            ])
+        elif method.startswith("ave"):
+            weights = np.tile(self.gp_wts / np.sum(self.gp_wts), (self.num_nodes, 1))
+        elif method.startswith("copy"):
+            weights = np.array([
+                [0, 0.5, 0.5],  # N1 ← G3, G2
+                [0.5, 0, 0.5],  # N2 ← G1, G3
+                [0.5, 0.5, 0],  # N3 ← G1, G2
+            ])
+        if gp_resp.ndim == 2:
+            return np.dot(weights, gp_resp)
+        elif gp_resp.ndim == 3:
+            return np.einsum("ng,gfr->nfr", weights, gp_resp)
+        else:
+            raise ValueError("gp_resp must be 2D or 3D array.")  # noqa: TRY003
+
+
+class FEshellN3GP4:  # DKGT and NLDKGT
+    def __init__(self):
+        self.gp_rs = np.array([1 / 3, 1 / 5, 3 / 5, 1 / 5])
+        self.gp_ss = np.array([1 / 3, 3 / 5, 1 / 5, 1 / 5])
+        self.gp_wts = np.array([-9.0 / 16.0, 25.0 / 48.0, 25.0 / 48.0, 25.0 / 48.0])
+
+        self.node_rs = np.array([0.0, 1.0, 0.0])
+        self.node_ss = np.array([0.0, 0.0, 1.0])
+
+        self.num_nodes = 3
+
+    def project_to_nodes(self, method: str, gp_resp: np.ndarray) -> np.ndarray:
+        """Project Gauss point responses to nodes."""
+        method = method.lower()
+        if method.startswith("extra"):
+            weights = np.array([
+                [0.240536, 0.179285, 0.179285, 0.400893],  # N1
+                [0.231701, 0.172700, 0.386169, 0.209430],  # N2
+                [0.231701, 0.386169, 0.172700, 0.209430],  # N3
+            ])
+        elif method.startswith("ave"):
+            weights = np.tile(self.gp_wts / np.sum(self.gp_wts), (self.num_nodes, 1))
+        elif method.startswith("copy"):
+            weights = np.array([
+                [0, 0, 0, 1],  # N1 ← G3
+                [0, 0, 1, 0],  # N2 ← G2
+                [0, 1, 0, 0],  # N3 ← G1
+            ])
+        if gp_resp.ndim == 2:
+            return np.dot(weights, gp_resp)
+        elif gp_resp.ndim == 3:
+            return np.einsum("ng,gfr->nfr", weights, gp_resp)
+        else:
+            raise ValueError("gp_resp must be 2D or 3D array.")  # noqa: TRY003
+
+
+class FEshellN4GP4(FEquadN4GP4):
+    def __init__(self):
+        super().__init__()
+
+
+class FEshellN9GP9(FEquadN9GP9):
+    def __init__(self):
+        super().__init__()
 
 
 weights_brick20_gp27_extra = np.array([

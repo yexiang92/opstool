@@ -1,26 +1,31 @@
+from collections import defaultdict
 from typing import Optional
 
 import numpy as np
 import openseespy.opensees as ops
 import xarray as xr
 
+from ...utils import get_shell_gp2node_func
 from ._response_base import ResponseBase, _expand_to_uniform_array
-
-# from ._response_extrapolation import (
-#     resp_extrap_tri3,
-#     resp_extrap_quad4,
-#     resp_extrap_quad9,
-# )
-# from ._get_plane_resp import _get_principal_resp
 
 
 class ShellRespStepData(ResponseBase):
-    def __init__(self, ele_tags=None, model_update: bool = False, dtype: dict = None):
+    def __init__(
+        self,
+        ele_tags=None,
+        model_update: bool = False,
+        compute_nodal_resp: Optional[str] = None,
+        dtype: Optional[dict] = None,
+    ):
         self.resp_names = [
             "sectionForces",
             "sectionDeformations",
             "Stresses",
             "Strains",
+            "sectionForcesAtNodes",
+            "sectionDeformationsAtNodes",
+            "StressesAtNodes",
+            "StrainsAtNodes",
         ]
         self.resp_steps = None
         self.resp_steps_list = []  # for model update
@@ -29,6 +34,9 @@ class ShellRespStepData(ResponseBase):
         self.ele_tags = ele_tags
         self.times = []
 
+        self.node_tags = None
+        self.compute_nodal_resp = compute_nodal_resp
+        self.nodal_resp_method = compute_nodal_resp
         self.model_update = model_update
         self.dtype = {"int": np.int32, "float": np.float32}
         if isinstance(dtype, dict):
@@ -63,6 +71,14 @@ class ShellRespStepData(ResponseBase):
     def add_data_one_step(self, ele_tags):
         sec_forces, sec_defos, stresses, strains = _get_shell_resp_one_step(ele_tags, dtype=self.dtype)
 
+        if self.compute_nodal_resp:
+            method = self.nodal_resp_method
+            node_sec_forces_avg, node_tags = _get_nodal_resp(ele_tags, sec_forces, method=method, dtype=self.dtype)
+            node_sec_defo_avg, node_tags = _get_nodal_resp(ele_tags, sec_defos, method=method, dtype=self.dtype)
+            node_stresses_avg, node_tags = _get_nodal_resp(ele_tags, stresses, method=method, dtype=self.dtype)
+            node_strains_avg, node_tags = _get_nodal_resp(ele_tags, strains, method=method, dtype=self.dtype)
+            self.node_tags = node_tags
+
         if self.GaussPoints is None:
             self.GaussPoints = np.arange(sec_forces.shape[1]) + 1
         if self.fiberPoints is None:
@@ -74,15 +90,22 @@ class ShellRespStepData(ResponseBase):
             data_vars["sectionDeformations"] = (["eleTags", "GaussPoints", "secDOFs"], sec_defos)
             data_vars["Stresses"] = (["eleTags", "GaussPoints", "fiberPoints", "stressDOFs"], stresses)
             data_vars["Strains"] = (["eleTags", "GaussPoints", "fiberPoints", "stressDOFs"], strains)
+            coords = {
+                "eleTags": ele_tags,
+                "GaussPoints": self.GaussPoints,
+                "secDOFs": self.secDOFs,
+                "fiberPoints": self.fiberPoints,
+                "stressDOFs": self.stressDOFs,
+            }
+            if self.compute_nodal_resp:
+                data_vars["sectionForcesAtNodes"] = (["nodeTags", "secDOFs"], node_sec_forces_avg)
+                data_vars["sectionDeformationsAtNodes"] = (["nodeTags", "secDOFs"], node_sec_defo_avg)
+                data_vars["StressesAtNodes"] = (["nodeTags", "fiberPoints", "stressDOFs"], node_stresses_avg)
+                data_vars["StrainsAtNodes"] = (["nodeTags", "fiberPoints", "stressDOFs"], node_strains_avg)
+                coords["nodeTags"] = node_tags
             ds = xr.Dataset(
                 data_vars=data_vars,
-                coords={
-                    "eleTags": ele_tags,
-                    "GaussPoints": self.GaussPoints,
-                    "secDOFs": self.secDOFs,
-                    "fiberPoints": self.fiberPoints,
-                    "stressDOFs": self.stressDOFs,
-                },
+                coords=coords,
                 attrs=self.attrs,
             )
             self.resp_steps_list.append(ds)
@@ -91,11 +114,17 @@ class ShellRespStepData(ResponseBase):
             self.resp_steps_dict["sectionDeformations"].append(sec_defos)
             self.resp_steps_dict["Stresses"].append(stresses)
             self.resp_steps_dict["Strains"].append(strains)
+            if self.compute_nodal_resp:
+                self.resp_steps_dict["sectionForcesAtNodes"].append(node_sec_forces_avg)
+                self.resp_steps_dict["sectionDeformationsAtNodes"].append(node_sec_defo_avg)
+                self.resp_steps_dict["StressesAtNodes"].append(node_stresses_avg)
+                self.resp_steps_dict["StrainsAtNodes"].append(node_strains_avg)
 
         self.times.append(ops.getTime())
         self.step_track += 1
 
     def _to_xarray(self):
+        self.times = np.array(self.times, dtype=self.dtype["float"])
         if self.model_update:
             self.resp_steps = xr.concat(self.resp_steps_list, dim="time", join="outer")
             self.resp_steps.coords["time"] = self.times
@@ -117,18 +146,33 @@ class ShellRespStepData(ResponseBase):
                 ["time", "eleTags", "GaussPoints", "fiberPoints", "stressDOFs"],
                 self.resp_steps_dict["Strains"],
             )
-            self.resp_steps = xr.Dataset(
-                data_vars=data_vars,
-                coords={
-                    "time": self.times,
-                    "eleTags": self.ele_tags,
-                    "GaussPoints": self.GaussPoints,
-                    "secDOFs": self.secDOFs,
-                    "fiberPoints": self.fiberPoints,
-                    "stressDOFs": self.stressDOFs,
-                },
-                attrs=self.attrs,
-            )
+            coords = {
+                "time": self.times,
+                "eleTags": self.ele_tags,
+                "GaussPoints": self.GaussPoints,
+                "secDOFs": self.secDOFs,
+                "fiberPoints": self.fiberPoints,
+                "stressDOFs": self.stressDOFs,
+            }
+            if self.compute_nodal_resp:
+                data_vars["sectionForcesAtNodes"] = (
+                    ["time", "nodeTags", "secDOFs"],
+                    self.resp_steps_dict["sectionForcesAtNodes"],
+                )
+                data_vars["sectionDeformationsAtNodes"] = (
+                    ["time", "nodeTags", "secDOFs"],
+                    self.resp_steps_dict["sectionDeformationsAtNodes"],
+                )
+                data_vars["StressesAtNodes"] = (
+                    ["time", "nodeTags", "fiberPoints", "stressDOFs"],
+                    self.resp_steps_dict["StressesAtNodes"],
+                )
+                data_vars["StrainsAtNodes"] = (
+                    ["time", "nodeTags", "fiberPoints", "stressDOFs"],
+                    self.resp_steps_dict["StrainsAtNodes"],
+                )
+                coords["nodeTags"] = self.node_tags
+            self.resp_steps = xr.Dataset(data_vars=data_vars, coords=coords, attrs=self.attrs)
 
     def get_data(self):
         return self.resp_steps
@@ -158,6 +202,14 @@ class ShellRespStepData(ResponseBase):
         resp_steps["sectionForces"].loc[{"secDOFs": ["MXX", "MYY", "MXY"]}] *= moment_per_length_factor
         resp_steps["Stresses"] *= stress_factor
 
+        if "sectionForcesAtNodes" in resp_steps.data_vars:
+            resp_steps["sectionForcesAtNodes"].loc[{"secDOFs": ["FXX", "FYY", "FXY", "VXZ", "VYZ"]}] *= (
+                force_per_length_factor
+            )
+            resp_steps["sectionForcesAtNodes"].loc[{"secDOFs": ["MXX", "MYY", "MXY"]}] *= moment_per_length_factor
+        if "StressesAtNodes" in resp_steps.data_vars:
+            resp_steps["StressesAtNodes"] *= stress_factor
+
         return resp_steps
 
     @staticmethod
@@ -186,8 +238,8 @@ def _get_shell_resp_one_step(ele_tags, dtype):
         etag = int(etag)
         forces = ops.eleResponse(etag, "stresses")
         defos = ops.eleResponse(etag, "strains")
-        sec_forces.append(np.reshape(forces, (-1, 8)))
-        sec_defos.append(np.reshape(defos, (-1, 8)))
+        sec_forces.append(_reorder_by_ele_type(etag, np.reshape(forces, (-1, 8))))
+        sec_defos.append(_reorder_by_ele_type(etag, np.reshape(defos, (-1, 8))))
         # stress and strains
         num_sec = int(len(forces) / 8)
         sec_stress, sec_strain = [], []
@@ -205,8 +257,8 @@ def _get_shell_resp_one_step(ele_tags, dtype):
             sec_strain.extend([np.nan, np.nan, np.nan, np.nan, np.nan] * num_sec)
         sec_stress = np.reshape(sec_stress, (num_sec, -1, 5))
         sec_strain = np.reshape(sec_strain, (num_sec, -1, 5))
-        stresses.append(sec_stress)
-        strains.append(sec_strain)
+        stresses.append(_reorder_by_ele_type(etag, sec_stress))
+        strains.append(_reorder_by_ele_type(etag, sec_strain))
     sec_forces = _expand_to_uniform_array(sec_forces, dtype=dtype["float"])
     sec_defos = _expand_to_uniform_array(sec_defos, dtype=dtype["float"])
     stresses = _expand_to_uniform_array(stresses, dtype=dtype["float"])
@@ -214,125 +266,46 @@ def _get_shell_resp_one_step(ele_tags, dtype):
     return sec_forces, sec_defos, stresses, strains
 
 
-# --------------------------------------------------------------------------
-# --------------------------------------------------------------------------
-# def _get_shell_resp(ele_tags):
-#     all_forces, all_defos = dict(), dict()
-#     all_stress, all_strain = dict(), dict()
-#     for etag in ele_tags:
-#         ntags = ops.eleNodes(etag)
-#         if len(ntags) == 3:
-#             nodal_forces, nodal_defos, nodal_stress, nodal_strain = _get_resp_tri3(etag)
-#         elif len(ntags) == 4:
-#             nodal_forces, nodal_defos, nodal_stress, nodal_strain = _get_resp_quad4(
-#                 etag
-#             )
-#         elif len(ntags) == 9:
-#             nodal_forces, nodal_defos, nodal_stress, nodal_strain = _get_resp_quad9(
-#                 etag
-#             )
-#         else:
-#             raise RuntimeError("Unsupported planar element type!")
-#         all_forces[etag], all_defos[etag] = nodal_forces, nodal_defos
-#         all_stress[etag], all_strain[etag] = nodal_stress, nodal_strain
-#     return all_forces, all_defos, all_stress, all_strain
-#
-#
-# def _get_resp_tri3(etag):
-#     forces = ops.eleResponse(etag, "stresses")
-#     defos = ops.eleResponse(etag, "strains")
-#     nodal_forces = resp_extrap_tri3(forces)
-#     nodal_defos = resp_extrap_tri3(defos)
-#     ng = 1
-#     stresses, strains = _get_gaussian_stress_strain(etag, ng)
-#     nlayer = len(stresses[0])
-#     nodal_stress, nodal_strain = np.zeros((nlayer, 3, 13)), np.zeros((nlayer, 3, 13))
-#
-#     for i in range(nlayer):
-#         stress, strain = [], []
-#         for j in range(ng):
-#             stress.append(stresses[j][i])
-#             strain.append(strains[j][i])
-#         nodal_stress[i] = resp_extrap_tri3(stress)
-#         nodal_strain[i] = resp_extrap_tri3(strain)
-#
-#     return nodal_forces, nodal_defos, nodal_stress, nodal_strain
-#
-#
-# def _get_resp_quad4(etag):
-#     forces = ops.eleResponse(etag, "stresses")
-#     defos = ops.eleResponse(etag, "strains")
-#     forces = np.reshape(forces, (-1, 8))
-#     defos = np.reshape(defos, (-1, 8))
-#     nodal_forces = resp_extrap_quad4(forces)
-#     nodal_defos = resp_extrap_quad4(defos)
-#     ng = 4
-#     stresses, strains = _get_gaussian_stress_strain(etag, ng)
-#     nlayer = len(stresses[0])
-#     nodal_stress, nodal_strain = np.zeros((nlayer, 4, 13)), np.zeros((nlayer, 4, 13))
-#
-#     for i in range(nlayer):
-#         stress, strain = [], []
-#         for j in range(ng):
-#             stress.append(stresses[j][i])
-#             strain.append(strains[j][i])
-#         nodal_stress[i] = resp_extrap_quad4(stress)
-#         nodal_strain[i] = resp_extrap_quad4(strain)
-#
-#     return nodal_forces, nodal_defos, nodal_stress, nodal_strain
-#
-#
-# def _get_resp_quad9(etag):
-#     forces = ops.eleResponse(etag, "stresses")
-#     defos = ops.eleResponse(etag, "strains")
-#     forces = np.reshape(forces, (-1, 8))
-#     defos = np.reshape(defos, (-1, 8))
-#     nodal_forces = resp_extrap_quad9(forces)
-#     nodal_defos = resp_extrap_quad9(defos)
-#     ng = 9
-#     stresses, strains = _get_gaussian_stress_strain(etag, ng)
-#     nlayer = len(stresses[0])
-#     nodal_stress, nodal_strain = np.zeros((nlayer, 9, 13)), np.zeros((nlayer, 9, 13))
-#
-#     for i in range(nlayer):
-#         stress, strain = [], []
-#         for j in range(ng):
-#             stress.append(stresses[j][i])
-#             strain.append(strains[j][i])
-#         nodal_stress[i] = resp_extrap_quad9(stress)
-#         nodal_strain[i] = resp_extrap_quad9(strain)
-#
-#     return nodal_forces, nodal_defos, nodal_stress, nodal_strain
-#
-#
-# def _get_gaussian_stress_strain(etag, ng):
-#     stresses, strains = [], []
-#     for i in range(ng):
-#         j = 0
-#         stress, strain = [], []
-#         while True:
-#             s = ops.eleResponse(
-#                 etag, "material", f"{i + 1}", "fiber", f"{j + 1}", "stress"
-#             )
-#             d = ops.eleResponse(
-#                 etag, "material", f"{i + 1}", "fiber", f"{j + 1}", "strain"
-#             )
-#             if j == 0 and len(s) == 0:
-#                 s, d = [0.0] * 6, [0.0] * 6
-#             if len(s) == 0:
-#                 break
-#             s, d = _get_all_stress_strain(s, d)
-#             stress.extend(s)
-#             strain.extend(d)
-#             j += 1
-#         stresses.append(stress)
-#         strains.append(strain)
-#     return stresses, strains
-#
-#
-# def _get_all_stress_strain(stress, strain):
-#     stress2 = _get_principal_resp(stress)
-#     stress += stress2
-#     strain2 = _get_principal_resp(strain)
-#     strain += strain2
-#     return stress, strain
+def _reorder_by_ele_type(etag, resp):
+    ele_class_tag = ops.getEleClassTags(etag)[0]
+    if ele_class_tag == 54 and len(resp) == 9:  # "ShellMITC9", 9 gps
+        idx = [0, 2, 4, 6, 1, 3, 5, 7, 8]
+    else:
+        return resp
+    return np.array([resp[i] for i in idx])
+
+
+gp2node_type = {3: "tri", 6: "tri", 4: "quad", 8: "quad", 9: "quad"}
+
+
+# Get nodal stresses and strains from the Gauss points of elements.
+def _get_nodal_resp(ele_tags, ele_gp_resp, method, dtype):
+    node_resp = defaultdict(list)
+    for etag, gp_resp in zip(ele_tags, ele_gp_resp):
+        etag = int(etag)
+        ntags = ops.eleNodes(etag)
+        gp_resp = drop_all_nan_rows(gp_resp)  # drop rows where all values are NaN
+        if len(gp_resp) == 0:
+            continue
+        gp2node_func = get_shell_gp2node_func(ele_type=gp2node_type[len(ntags)], n=len(ntags), gp=len(gp_resp))
+        if gp2node_func:
+            resp = gp2node_func(method=method, gp_resp=gp_resp)
+        else:
+            resp = np.zeros((len(ntags), *gp_resp.shape[1:]), dtype=dtype["float"])
+        for i, ntag in enumerate(ntags):
+            node_resp[ntag].append(resp[i])
+    # node_resp = dict(sorted(node_resp.items()))
+    node_avg = {}
+
+    for nid, vals in node_resp.items():
+        arr = np.stack(vals, axis=0)  # shape: (k, m), k=num_samples, m=DOFs
+        node_avg[nid] = np.nanmean(arr, axis=0)  # mean value
+    node_avg = np.array(list(node_avg.values()), dtype=dtype["float"])
+    node_tags = list(node_resp.keys())
+    return node_avg, node_tags
+
+
+def drop_all_nan_rows(arr: np.ndarray) -> np.ndarray:
+    axis_to_check = tuple(range(1, arr.ndim))
+    mask = ~np.isnan(arr).all(axis=axis_to_check)
+    return arr[mask]

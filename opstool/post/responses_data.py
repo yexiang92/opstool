@@ -270,7 +270,12 @@ class CreateODB:
             shell_tags = [int(tag) for tag in np.atleast_1d(shell_tags)]
         if len(shell_tags) > 0 and _save_shell_resp:
             if self._ShellResp is None:
-                self._ShellResp = ShellRespStepData(shell_tags, model_update=self._model_update, dtype=POST_ARGS.dtype)
+                self._ShellResp = ShellRespStepData(
+                    shell_tags,
+                    model_update=self._model_update,
+                    compute_nodal_resp=POST_ARGS.project_gauss_to_nodes,
+                    dtype=POST_ARGS.dtype,
+                )
             else:
                 self._ShellResp.add_data_one_step(shell_tags)
 
