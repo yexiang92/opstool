@@ -49,6 +49,7 @@ class PlotResponseBase:
         self.resp_step = None  # response data
         self.resp_type = None  # response type
         self.component = None  # component to be visualized
+        self.fiber_point = None  # fiber point for shell fiber response
         self.unit_symbol = ""  # unit symbol
         self.unit_factor = 1.0
 
