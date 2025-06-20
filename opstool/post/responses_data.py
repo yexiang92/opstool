@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from typing import Optional, Union
+from typing import Optional, TypedDict, Union, Unpack
 
 import numpy as np
 import openseespy.opensees as ops
@@ -23,7 +23,38 @@ from ._unit_postprocess import get_post_unit_multiplier, get_post_unit_symbol
 from .eigen_data import save_eigen_data
 from .model_data import save_model_data
 
-POST_ARGS = SimpleNamespace(
+
+class _POST_ARGS_TYPES(TypedDict):
+    elastic_frame_sec_points: int
+    compute_mechanical_measures: bool
+    project_gauss_to_nodes: Optional[str]
+    dtype: dict[str, np.dtype]
+    # -------------------------------------------
+    save_nodal_resp: bool
+    save_frame_resp: bool
+    save_truss_resp: bool
+    save_link_resp: bool
+    save_shell_resp: bool
+    save_fiber_sec_resp: bool
+    save_plane_resp: bool
+    save_brick_resp: bool
+    save_contact_resp: bool
+    save_sensitivity_resp: bool = False
+    # -------------------------------------------
+    node_tags: Optional[Union[list, tuple, int]]
+    frame_tags: Optional[Union[list, tuple, int]]
+    truss_tags: Optional[Union[list, tuple, int]]
+    link_tags: Optional[Union[list, tuple, int]]
+    shell_tags: Optional[Union[list, tuple, int]]
+    fiber_ele_tags: Optional[Union[list, str]]
+    plane_tags: Optional[Union[list, tuple, int]]
+    brick_tags: Optional[Union[list, tuple, int]]
+    contact_tags: Optional[Union[list, tuple, int]]
+    sensitivity_para_tags: Optional[Union[list, tuple, int]]
+    # -------------------------------------------
+
+
+_POST_ARGS = SimpleNamespace(
     elastic_frame_sec_points=7,
     compute_mechanical_measures=True,
     project_gauss_to_nodes="copy",
@@ -147,15 +178,15 @@ class CreateODB:
                 Otherwise, unexpected behavior may occur.
     """
 
-    def __init__(self, odb_tag: Union[int, str] = 1, model_update: bool = False, **kwargs):
+    def __init__(self, odb_tag: Union[int, str] = 1, model_update: bool = False, **kwargs: Unpack[_POST_ARGS_TYPES]):
         self._odb_tag = odb_tag
         self._model_update = model_update
 
         for key, value in kwargs.items():
-            if key not in list(vars(POST_ARGS).keys()):
-                raise KeyError(f"Incorrect parameter {key}, should be one of {list(vars(POST_ARGS).keys())}!")  # noqa: TRY003
+            if key not in list(vars(_POST_ARGS).keys()):
+                raise KeyError(f"Incorrect parameter {key}, should be one of {list(vars(_POST_ARGS).keys())}!")  # noqa: TRY003
             else:
-                setattr(POST_ARGS, key, value)
+                setattr(_POST_ARGS, key, value)
 
         self._ModelInfo = None
         self._NodalResp = None
@@ -207,20 +238,20 @@ class CreateODB:
             self._ModelInfo.add_data_one_step()
 
     def _set_node_resp(self):
-        _save_nodal_resp = POST_ARGS.save_nodal_resp
-        _node_tags = POST_ARGS.node_tags
+        _save_nodal_resp = _POST_ARGS.save_nodal_resp
+        _node_tags = _POST_ARGS.node_tags
         node_tags = _node_tags if _node_tags is not None else self._ModelInfo.get_current_node_tags()
         if node_tags is not None:
             node_tags = [int(tag) for tag in np.atleast_1d(node_tags)]  # Ensure tags are integers
         if len(node_tags) > 0 and _save_nodal_resp:
             if self._NodalResp is None:
-                self._NodalResp = NodalRespStepData(node_tags, model_update=self._model_update, dtype=POST_ARGS.dtype)
+                self._NodalResp = NodalRespStepData(node_tags, model_update=self._model_update, dtype=_POST_ARGS.dtype)
             else:
                 self._NodalResp.add_data_one_step(node_tags)
 
     def _set_frame_resp(self):
-        _save_frame_resp = POST_ARGS.save_frame_resp
-        _frame_tags = POST_ARGS.frame_tags
+        _save_frame_resp = _POST_ARGS.save_frame_resp
+        _frame_tags = _POST_ARGS.frame_tags
         frame_tags = _frame_tags if _frame_tags is not None else self._ModelInfo.get_current_frame_tags()
         if frame_tags is not None:
             frame_tags = [int(tag) for tag in np.atleast_1d(frame_tags)]  # Ensure tags are integers
@@ -230,41 +261,41 @@ class CreateODB:
                 self._FrameResp = FrameRespStepData(
                     frame_tags,
                     frame_load_data,
-                    elastic_frame_sec_points=POST_ARGS.elastic_frame_sec_points,
+                    elastic_frame_sec_points=_POST_ARGS.elastic_frame_sec_points,
                     model_update=self._model_update,
-                    dtype=POST_ARGS.dtype,
+                    dtype=_POST_ARGS.dtype,
                 )
             else:
                 self._FrameResp.add_data_one_step(frame_tags, frame_load_data)
 
     def _set_truss_resp(self):
-        _save_truss_resp = POST_ARGS.save_truss_resp
-        _truss_tags = POST_ARGS.truss_tags
+        _save_truss_resp = _POST_ARGS.save_truss_resp
+        _truss_tags = _POST_ARGS.truss_tags
         truss_tags = _truss_tags if _truss_tags is not None else self._ModelInfo.get_current_truss_tags()
         if truss_tags is not None:
             truss_tags = [int(tag) for tag in np.atleast_1d(truss_tags)]  # Ensure tags are integers
         if len(truss_tags) > 0 and _save_truss_resp:
             if self._TrussResp is None:
-                self._TrussResp = TrussRespStepData(truss_tags, model_update=self._model_update, dtype=POST_ARGS.dtype)
+                self._TrussResp = TrussRespStepData(truss_tags, model_update=self._model_update, dtype=_POST_ARGS.dtype)
             else:
                 self._TrussResp.add_data_one_step(truss_tags)
 
     def _set_link_resp(self):
-        _save_link_resp = POST_ARGS.save_link_resp
-        _link_tags = POST_ARGS.link_tags
+        _save_link_resp = _POST_ARGS.save_link_resp
+        _link_tags = _POST_ARGS.link_tags
         link_tags = _link_tags if _link_tags is not None else self._ModelInfo.get_current_link_tags()
         if link_tags is not None:
             link_tags = [int(tag) for tag in np.atleast_1d(link_tags)]
 
         if len(link_tags) > 0 and _save_link_resp:
             if self._LinkResp is None:
-                self._LinkResp = LinkRespStepData(link_tags, model_update=self._model_update, dtype=POST_ARGS.dtype)
+                self._LinkResp = LinkRespStepData(link_tags, model_update=self._model_update, dtype=_POST_ARGS.dtype)
             else:
                 self._LinkResp.add_data_one_step(link_tags)
 
     def _set_shell_resp(self):
-        _save_shell_resp = POST_ARGS.save_shell_resp
-        _shell_tags = POST_ARGS.shell_tags
+        _save_shell_resp = _POST_ARGS.save_shell_resp
+        _shell_tags = _POST_ARGS.shell_tags
         shell_tags = _shell_tags if _shell_tags is not None else self._ModelInfo.get_current_shell_tags()
         if shell_tags is not None:
             shell_tags = [int(tag) for tag in np.atleast_1d(shell_tags)]
@@ -273,15 +304,15 @@ class CreateODB:
                 self._ShellResp = ShellRespStepData(
                     shell_tags,
                     model_update=self._model_update,
-                    compute_nodal_resp=POST_ARGS.project_gauss_to_nodes,
-                    dtype=POST_ARGS.dtype,
+                    compute_nodal_resp=_POST_ARGS.project_gauss_to_nodes,
+                    dtype=_POST_ARGS.dtype,
                 )
             else:
                 self._ShellResp.add_data_one_step(shell_tags)
 
     def _set_fiber_sec_resp(self):
-        _save_fiber_sec_resp = POST_ARGS.save_fiber_sec_resp
-        _fiber_ele_tags = POST_ARGS.fiber_ele_tags
+        _save_fiber_sec_resp = _POST_ARGS.save_fiber_sec_resp
+        _fiber_ele_tags = _POST_ARGS.fiber_ele_tags
         if _fiber_ele_tags is not None:
             if not isinstance(_fiber_ele_tags, str):
                 _fiber_ele_tags = [int(tag) for tag in np.atleast_1d(_fiber_ele_tags)]
@@ -291,13 +322,13 @@ class CreateODB:
 
         if _fiber_ele_tags is not None and _save_fiber_sec_resp:
             if self._FiberSecResp is None:
-                self._FiberSecResp = FiberSecRespStepData(_fiber_ele_tags, dtype=POST_ARGS.dtype)
+                self._FiberSecResp = FiberSecRespStepData(_fiber_ele_tags, dtype=_POST_ARGS.dtype)
             else:
                 self._FiberSecResp.add_data_one_step()
 
     def _set_plane_resp(self):
-        _save_plane_resp = POST_ARGS.save_plane_resp
-        _plane_tags = POST_ARGS.plane_tags
+        _save_plane_resp = _POST_ARGS.save_plane_resp
+        _plane_tags = _POST_ARGS.plane_tags
         plane_tags = _plane_tags if _plane_tags is not None else self._ModelInfo.get_current_plane_tags()
         if plane_tags is not None:
             plane_tags = [int(tag) for tag in np.atleast_1d(plane_tags)]
@@ -306,17 +337,17 @@ class CreateODB:
             if self._PlaneResp is None:
                 self._PlaneResp = PlaneRespStepData(
                     plane_tags,
-                    compute_measures=POST_ARGS.compute_mechanical_measures,
-                    compute_nodal_resp=POST_ARGS.project_gauss_to_nodes,
+                    compute_measures=_POST_ARGS.compute_mechanical_measures,
+                    compute_nodal_resp=_POST_ARGS.project_gauss_to_nodes,
                     model_update=self._model_update,
-                    dtype=POST_ARGS.dtype,
+                    dtype=_POST_ARGS.dtype,
                 )
             else:
                 self._PlaneResp.add_data_one_step(plane_tags)
 
     def _set_brick_resp(self):
-        _save_brick_resp = POST_ARGS.save_brick_resp
-        _brick_tags = POST_ARGS.brick_tags
+        _save_brick_resp = _POST_ARGS.save_brick_resp
+        _brick_tags = _POST_ARGS.brick_tags
         brick_tags = _brick_tags if _brick_tags is not None else self._ModelInfo.get_current_brick_tags()
         if brick_tags is not None:
             brick_tags = [int(tag) for tag in np.atleast_1d(brick_tags)]
@@ -324,34 +355,34 @@ class CreateODB:
             if self._BrickResp is None:
                 self._BrickResp = BrickRespStepData(
                     brick_tags,
-                    compute_measures=POST_ARGS.compute_mechanical_measures,
-                    compute_nodal_resp=POST_ARGS.project_gauss_to_nodes,
+                    compute_measures=_POST_ARGS.compute_mechanical_measures,
+                    compute_nodal_resp=_POST_ARGS.project_gauss_to_nodes,
                     model_update=self._model_update,
-                    dtype=POST_ARGS.dtype,
+                    dtype=_POST_ARGS.dtype,
                 )
             else:
                 self._BrickResp.add_data_one_step(brick_tags)
 
     def _set_contact_resp(self):
-        _save_contact_resp = POST_ARGS.save_contact_resp
-        _contact_tags = POST_ARGS.contact_tags
+        _save_contact_resp = _POST_ARGS.save_contact_resp
+        _contact_tags = _POST_ARGS.contact_tags
         contact_tags = _contact_tags if _contact_tags is not None else self._ModelInfo.get_current_contact_tags()
         if contact_tags is not None:
             contact_tags = [int(tag) for tag in np.atleast_1d(contact_tags)]
         if len(contact_tags) > 0 and _save_contact_resp:
             if self._ContactResp is None:
                 self._ContactResp = ContactRespStepData(
-                    contact_tags, model_update=self._model_update, dtype=POST_ARGS.dtype
+                    contact_tags, model_update=self._model_update, dtype=_POST_ARGS.dtype
                 )
             else:
                 self._ContactResp.add_data_one_step(contact_tags)
 
     def _set_sensitivity_resp(self):
-        _save_sensitivity_resp = POST_ARGS.save_sensitivity_resp
-        _sensitivity_para_tags = POST_ARGS.sensitivity_para_tags
+        _save_sensitivity_resp = _POST_ARGS.save_sensitivity_resp
+        _sensitivity_para_tags = _POST_ARGS.sensitivity_para_tags
         sens_para_tags = _sensitivity_para_tags if _sensitivity_para_tags is not None else ops.getParamTags()
 
-        _node_tags = POST_ARGS.node_tags
+        _node_tags = _POST_ARGS.node_tags
         node_tags = _node_tags if _node_tags is not None else self._ModelInfo.get_current_node_tags()
         if node_tags is not None:
             node_tags = [int(tag) for tag in np.atleast_1d(node_tags)]
@@ -363,7 +394,7 @@ class CreateODB:
                     ele_tags=None,
                     sens_para_tags=sens_para_tags,
                     model_update=self._model_update,
-                    dtype=POST_ARGS.dtype,
+                    dtype=_POST_ARGS.dtype,
                 )
             else:
                 self._SensitivityResp.add_data_one_step(node_tags=node_tags, sens_para_tags=sens_para_tags)
@@ -475,25 +506,25 @@ def loadODB(
         color = get_random_color()
         if verbose:
             CONSOLE.print(f"{PKG_PREFIX} Loading response data from [bold {color}]{filename}[/] ...")
-        model_info_steps, model_update = ModelInfoStepData.read_file(dt, unit_factors=POST_ARGS.unit_factors)
+        model_info_steps, model_update = ModelInfoStepData.read_file(dt, unit_factors=_POST_ARGS.unit_factors)
         if resp_type.lower() == "nodal":
-            resp_step = NodalRespStepData.read_file(dt, unit_factors=POST_ARGS.unit_factors)
+            resp_step = NodalRespStepData.read_file(dt, unit_factors=_POST_ARGS.unit_factors)
         elif resp_type.lower() == "frame":
-            resp_step = FrameRespStepData.read_file(dt, unit_factors=POST_ARGS.unit_factors)
+            resp_step = FrameRespStepData.read_file(dt, unit_factors=_POST_ARGS.unit_factors)
         elif resp_type.lower() == "fibersec":
-            resp_step = FiberSecRespStepData.read_file(dt, unit_factors=POST_ARGS.unit_factors)
+            resp_step = FiberSecRespStepData.read_file(dt, unit_factors=_POST_ARGS.unit_factors)
         elif resp_type.lower() == "truss":
-            resp_step = TrussRespStepData.read_file(dt, unit_factors=POST_ARGS.unit_factors)
+            resp_step = TrussRespStepData.read_file(dt, unit_factors=_POST_ARGS.unit_factors)
         elif resp_type.lower() == "link":
-            resp_step = LinkRespStepData.read_file(dt, unit_factors=POST_ARGS.unit_factors)
+            resp_step = LinkRespStepData.read_file(dt, unit_factors=_POST_ARGS.unit_factors)
         elif resp_type.lower() == "shell":
-            resp_step = ShellRespStepData.read_file(dt, unit_factors=POST_ARGS.unit_factors)
+            resp_step = ShellRespStepData.read_file(dt, unit_factors=_POST_ARGS.unit_factors)
         elif resp_type.lower() == "plane":
-            resp_step = PlaneRespStepData.read_file(dt, unit_factors=POST_ARGS.unit_factors)
+            resp_step = PlaneRespStepData.read_file(dt, unit_factors=_POST_ARGS.unit_factors)
         elif resp_type.lower() in ["brick", "solid"]:
-            resp_step = BrickRespStepData.read_file(dt, unit_factors=POST_ARGS.unit_factors)
+            resp_step = BrickRespStepData.read_file(dt, unit_factors=_POST_ARGS.unit_factors)
         elif resp_type.lower() == "contact":
-            resp_step = ContactRespStepData.read_file(dt, unit_factors=POST_ARGS.unit_factors)
+            resp_step = ContactRespStepData.read_file(dt, unit_factors=_POST_ARGS.unit_factors)
         elif resp_type.lower() == "sensitivity":
             resp_step = SensitivityRespStepData.read_file(dt)
         else:
@@ -630,7 +661,7 @@ def get_nodal_responses(
                 CONSOLE.print(f"{PKG_PREFIX} Loading {resp_type} response data from [bold {color}]{filename}[/] ...")
 
         nodal_resp = NodalRespStepData.read_response(
-            dt, resp_type=resp_type, node_tags=node_tags, unit_factors=POST_ARGS.unit_factors
+            dt, resp_type=resp_type, node_tags=node_tags, unit_factors=_POST_ARGS.unit_factors
         )
     return nodal_resp
 
@@ -736,35 +767,35 @@ def get_element_responses(
 
         if ele_type.lower() == "frame":
             ele_resp = FrameRespStepData.read_response(
-                dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=POST_ARGS.unit_factors
+                dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=_POST_ARGS.unit_factors
             )
         elif ele_type.lower() == "fibersection":
             ele_resp = FiberSecRespStepData.read_response(
-                dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=POST_ARGS.unit_factors
+                dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=_POST_ARGS.unit_factors
             )
         elif ele_type.lower() == "truss":
             ele_resp = TrussRespStepData.read_response(
-                dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=POST_ARGS.unit_factors
+                dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=_POST_ARGS.unit_factors
             )
         elif ele_type.lower() == "link":
             ele_resp = LinkRespStepData.read_response(
-                dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=POST_ARGS.unit_factors
+                dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=_POST_ARGS.unit_factors
             )
         elif ele_type.lower() == "shell":
             ele_resp = ShellRespStepData.read_response(
-                dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=POST_ARGS.unit_factors
+                dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=_POST_ARGS.unit_factors
             )
         elif ele_type.lower() == "plane":
             ele_resp = PlaneRespStepData.read_response(
-                dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=POST_ARGS.unit_factors
+                dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=_POST_ARGS.unit_factors
             )
         elif ele_type.lower() in ["brick", "solid"]:
             ele_resp = BrickRespStepData.read_response(
-                dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=POST_ARGS.unit_factors
+                dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=_POST_ARGS.unit_factors
             )
         elif ele_type.lower() == "contact":
             ele_resp = ContactRespStepData.read_response(
-                dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=POST_ARGS.unit_factors
+                dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=_POST_ARGS.unit_factors
             )
         else:
             raise ValueError(  # noqa: TRY003
@@ -854,14 +885,14 @@ def update_unit_system(
     None
     """
     unit_factors, unit_syms = _parse_unit_factors(analysis_unit_system=pre, post_unit_system=post)
-    POST_ARGS.unit_factors = unit_factors
-    POST_ARGS.unit_symbols = unit_syms
+    _POST_ARGS.unit_factors = unit_factors
+    _POST_ARGS.unit_symbols = unit_syms
 
 
 def reset_unit_system():
     """Reset unit system for post-processing."""
-    POST_ARGS.unit_factors = None
-    POST_ARGS.unit_symbols = None
+    _POST_ARGS.unit_factors = None
+    _POST_ARGS.unit_symbols = None
 
 
 def _parse_unit_factors(analysis_unit_system, post_unit_system):
