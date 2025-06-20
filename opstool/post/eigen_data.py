@@ -1,5 +1,5 @@
 import os
-from typing import Optional, Union
+from typing import Literal, Optional, Union
 
 import numpy as np
 import openseespy.opensees as ops
@@ -119,7 +119,7 @@ def _get_eigen_info(
 def save_eigen_data(
     odb_tag: Union[str, int] = 1,
     mode_tag: int = 1,
-    solver: str = "-genBandArpack",
+    solver: Literal["-genBandArpack", "-fullGenLapack"] = "-genBandArpack",
 ):
     """Save modal analysis data.
 
