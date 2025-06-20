@@ -176,17 +176,17 @@ class BrickRespStepData(ResponseBase):
             "measures": ["p1", "p2", "p3", "sigma_vm", "tau_max", "sigma_oct", "tau_oct"],
         }
 
-        self.resp_steps["stressMeasures"] = xr.DataArray(
+        self.resp_steps["StressMeasures"] = xr.DataArray(
             stress_measures,
             dims=dims,
             coords=coords,
-            name="stressMeasures",
+            name="StressMeasures",
         )
-        self.resp_steps["strainMeasures"] = xr.DataArray(
+        self.resp_steps["StrainMeasures"] = xr.DataArray(
             strain_measures,
             dims=dims,
             coords=coords,
-            name="strainMeasures",
+            name="StrainMeasures",
         )
         if self.compute_nodal_resp:
             node_stress_measures = _calculate_stresses_measures_4D(
@@ -234,8 +234,8 @@ class BrickRespStepData(ResponseBase):
             {"stressDOFs": ["sigma11", "sigma22", "sigma33", "sigma12", "sigma23", "sigma13"]}
         ] *= stress_factor
 
-        if "stressMeasures" in resp_steps.data_vars:
-            resp_steps["stressMeasures"] *= stress_factor
+        if "StressMeasures" in resp_steps.data_vars:
+            resp_steps["StressMeasures"] *= stress_factor
         if "StressMeasuresAtNodes" in resp_steps.data_vars:
             resp_steps["StressMeasuresAtNodes"] *= stress_factor
 

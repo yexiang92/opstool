@@ -177,17 +177,17 @@ class PlaneRespStepData(ResponseBase):
             "measures": ["p1", "p2", "sigma_vm", "tau_max"],
         }
 
-        self.resp_steps["stressMeasures"] = xr.DataArray(
+        self.resp_steps["StressMeasures"] = xr.DataArray(
             stress_measures,
             dims=dims,
             coords=coords,
-            name="stressMeasures",
+            name="StressMeasures",
         )
-        self.resp_steps["strainMeasures"] = xr.DataArray(
+        self.resp_steps["StrainMeasures"] = xr.DataArray(
             strain_measures,
             dims=dims,
             coords=coords,
-            name="strainMeasures",
+            name="StrainMeasures",
         )
 
         if self.compute_nodal_resp:
@@ -228,8 +228,8 @@ class PlaneRespStepData(ResponseBase):
         resp_steps["Stresses"].loc[{"stressDOFs": ["sigma11", "sigma22", "sigma12"]}] *= stress_factor
         if "sigma33" in resp_steps["Stresses"].coords["stressDOFs"]:
             resp_steps["Stresses"].loc[{"stressDOFs": ["sigma33"]}] *= stress_factor
-        if "stressMeasures" in resp_steps.data_vars:
-            resp_steps["stressMeasures"] *= stress_factor
+        if "StressMeasures" in resp_steps.data_vars:
+            resp_steps["StressMeasures"] *= stress_factor
         if "StressMeasuresAtNodes" in resp_steps.data_vars:
             resp_steps["StressMeasuresAtNodes"] *= stress_factor
 
