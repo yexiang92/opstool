@@ -24,13 +24,14 @@ class PlotUnstruResponse(PlotResponseBase):
         else:
             raise ValueError(f"Invalid element type {self.ele_type}! Valid options are: Shell, Plane, Brick.")  # noqa: TRY003
 
-    def _set_comp_resp_type(self, ele_type, resp_type, component):
+    def _set_comp_resp_type(self, ele_type, resp_type, component, fiber_point=None):
         self.ele_type = ele_type
         self.resp_type = resp_type
         self.component = component
+        self.fiber_point = fiber_point
 
     def _make_unstru_info(self, ele_tags, step):
-        pos = self._get_node_da(step).to_numpy()
+        pos = self._get_node_da(step)
         unstru_data = self._get_unstru_da(step)
         if ele_tags is None:
             tags, cell_types, cells = _get_unstru_cells(unstru_data)
@@ -40,20 +41,50 @@ class PlotUnstruResponse(PlotResponseBase):
             tags, cell_types, cells = _get_unstru_cells(cells)
         return tags, pos, cells, cell_types
 
-    def refactor_resp_step(self, ele_tags, ele_type, resp_type: str, component: str):
-        self._set_comp_resp_type(ele_type, resp_type, component)
+    def refactor_resp_step(self, ele_tags, ele_type, resp_type: str, component: str, fiber_point: Optional[int] = None):
+        self._set_comp_resp_type(ele_type, resp_type, component, fiber_point=fiber_point)
         resps = []
-        if self.ModelUpdate or ele_tags is not None:
-            for i in range(self.num_steps):
-                tags, _, _, _ = self._make_unstru_info(ele_tags, i)
-                da = self._get_resp_da(i, self.resp_type, self.component)
+
+        for i in range(self.num_steps):
+            da = self._get_resp_da(i, self.resp_type, self.component)
+
+            if self.ModelUpdate or ele_tags is not None:
+                tags, pos, _, _ = self._make_unstru_info(ele_tags, i)
                 da = da.sel(eleTags=tags)
-                resps.append(da.mean(dim="GaussPoints", skipna=True))
-        else:
-            for i in range(self.num_steps):
-                da = self._get_resp_da(i, self.resp_type, self.component)
-                resps.append(da.mean(dim="GaussPoints", skipna=True))
+            else:
+                pos = self._get_node_da(i)
+
+            resps.append(self._process_scalar_from_da(da, pos, fiber_point))
+
         self.resp_step = resps
+
+    def _process_scalar_from_da(self, da, pos, fiber_point):
+        def _reset_fiber_point(fiber_point, da):
+            if fiber_point == "top":
+                fiber_point = da.coords["fiberPoints"].values[-1]
+            elif fiber_point == "bottom":
+                fiber_point = da.coords["fiberPoints"].values[0]
+            elif fiber_point == "middle":
+                fiber_point = da.coords["fiberPoints"].values[len(da.coords["fiberPoints"]) // 2]
+            return fiber_point
+
+        if "nodeTags" in da.dims:
+            scalars = pos.sel(coords="x").copy() * 0
+            if "fiberPoints" in da.dims:
+                fiber_point = _reset_fiber_point(fiber_point, da)
+                da = da.sel(fiberPoints=fiber_point)
+            scalars.loc[{"nodeTags": da.coords["nodeTags"]}] = da
+            return scalars
+
+        if "fiberPoints" in da.dims and "GaussPoints" in da.dims:
+            fiber_point = _reset_fiber_point(fiber_point, da)
+            da = da.sel(fiberPoints=fiber_point)
+            return da.sel(fiberPoints=fiber_point).mean(dim="GaussPoints", skipna=True)
+
+        if "GaussPoints" in da.dims:
+            return da.mean(dim="GaussPoints", skipna=True)
+
+        return da  # fallback: return raw
 
     def _get_resp_peak(self, idx="absMax"):
         if isinstance(idx, str):
@@ -83,10 +114,18 @@ class PlotUnstruResponse(PlotResponseBase):
         return cmin, cmax
 
     def _make_title(self, scalars, step, time):
-        if self.resp_type.lower() == "stressmeasures":
+        if self.resp_type.lower() in ["stressmeasures", "stressmeasuresatnodes"]:
             resp_type = "Stress Measures"
-        elif self.resp_type.lower() == "strainmeasures":
+        elif self.resp_type.lower() in ["strainmeasures", "strainmeasuresatnodes"]:
             resp_type = "Strain Measures"
+        elif self.resp_type.lower() in ["sectionforces", "sectionforcesatnodes"]:
+            resp_type = "Section Forces"
+        elif self.resp_type.lower() in ["sectiondeformations", "sectiondeformationsatnodes"]:
+            resp_type = "Section Deformations"
+        elif self.resp_type.lower() in ["stresses", "stressesatnodes"]:
+            resp_type = "Stresses"
+        elif self.resp_type.lower() in ["strains", "strainsatnodes"]:
+            resp_type = "Strains"
         else:
             resp_type = self.resp_type.capitalize()
         info = {
@@ -377,6 +416,7 @@ def plot_unstruct_responses(
     step: Union[int, str] = "absMax",
     resp_type: str = "sectionForces",
     resp_dof: str = "MXX",
+    shell_fiber_loc: Optional[Union[str, int]] = "top",
     style: str = "surface",
     unit_symbol: Optional[str] = None,
     unit_factor: Optional[float] = None,
@@ -413,14 +453,17 @@ def plot_unstruct_responses(
     resp_type: str, default: None
         Response type, which dependents on the element type `ele_type`.
 
-        #. For ``Shell`` elements, one of ["sectionForces", "sectionDeformations"].
-            I.e., section forces and deformations at Gaussian integration points (per unit length).
+        #. For ``Shell`` elements, one of ["sectionForces", "sectionDeformations", "sectionForcesAtNodes", "sectionDeformationsAtNodes", "Stresses", "Strains", "StressesAtNodes", "StrainsAtNodes"].
+            If it endswith `AtNodes`, responses at nodes will be displayed,
+            else responses at Gaussian integration points will be averaged for each element (per unit length).
             If None, defaults to "sectionForces".
-        #. For ``Plane`` elements, one of ["stresses", "strains"].
-            I.e., stresses and strains at Gaussian integration points.
+        #. For ``Plane`` elements, one of ["stresses", "strains", "stressesAtNodes", "strainsAtNodes"].
+            If it endswith `AtNodes`, responses at nodes will be displayed,
+            else responses at Gaussian integration points will be averaged for each element.
             If None, defaults to "stresses".
-        #. For ``Brick`` or ``Solid`` elements, one of ["stresses", "strains"].
-            I.e., stresses and strains at Gaussian integration points.
+        #. For ``Brick`` or ``Solid`` elements, one of ["stresses", "strains", "stressesAtNodes", "strainsAtNodes"].
+            If it endswith `AtNodes`, responses at nodes will be displayed,
+            else responses at Gaussian integration points will be averaged for each element.
             If None, defaults to "stresses".
 
     resp_dof: str, default: None
@@ -430,7 +473,7 @@ def plot_unstruct_responses(
             The `resp_dof` here is consistent with stress-strain (force-deformation),
             and whether it is stress or strain depends on the parameter `resp_type`.
 
-        #. For ``Shell`` elements, one of ["FXX", "FYY", "FXY", "MXX", "MYY", "MXY", "VXZ", "VYZ"].
+        #. For ``Shell`` elements, If resp_type is the section responses, one of ["FXX", "FYY", "FXY", "MXX", "MYY", "MXY", "VXZ", "VYZ"]. If resp_type is the stress or strain, one of ["sigma11", "sigma22", "sigma12", "sigma23", "sigma13"].
             If None, defaults to "MXX".
         #. For ``Plane`` elements, one of ["sigma11", "sigma22", "sigma12", "p1", "p2", "sigma_vm", "tau_max"].
 
@@ -450,6 +493,13 @@ def plot_unstruct_responses(
             * "sigma_oct": Octahedral normal stress (strains).
             * "tau_oct": Octahedral shear stress (strains).
             * If None, defaults to "sigma_vm".
+
+    shell_fiber_loc: Optional[Union[str, int]], default: "top", added in v1.0.16
+        The location of the fiber point for shell elements.
+        If str, one of ["top", "bottom", "middle"].
+        If int, the index of the fiber point to be visualized, from 1 (bottom) to N (top).
+        The fiber point is the fiber layer in the shell section.
+        Note that this parameter is only valid for stresses and strains in shell elements.
 
     unit_symbol: str, default: None
         Unit symbol to be displayed in the plot.
@@ -492,7 +542,7 @@ def plot_unstruct_responses(
     `Plotter.export_html <https://docs.pyvista.org/api/plotting/_autosummary/pyvista.plotter.export_html#pyvista.Plotter.export_html>`_.
     to export this plotter as an interactive scene to an HTML file.
     """
-    ele_type, resp_type, resp_dof = _check_input(ele_type, resp_type, resp_dof)
+    ele_type, resp_type, resp_dof, fiber_pts = _check_input(ele_type, resp_type, resp_dof, fiber_pts=shell_fiber_loc)
     model_info_steps, model_update, resp_step = loadODB(odb_tag, resp_type=ele_type)
     if show_defo:
         _, _, node_resp_steps = loadODB(odb_tag, resp_type="Nodal", verbose=False)
@@ -506,7 +556,9 @@ def plot_unstruct_responses(
     )
     plotbase = PlotUnstruResponse(model_info_steps, resp_step, model_update, node_resp_steps=node_resp_steps)
     plotbase.set_unit(symbol=unit_symbol, factor=unit_factor)
-    plotbase.refactor_resp_step(ele_tags=ele_tags, ele_type=ele_type, resp_type=resp_type, component=resp_dof)
+    plotbase.refactor_resp_step(
+        ele_tags=ele_tags, ele_type=ele_type, resp_type=resp_type, component=resp_dof, fiber_point=fiber_pts
+    )
     if slides:
         plotbase.plot_slide(
             plotter,
@@ -548,6 +600,7 @@ def plot_unstruct_responses_animation(
     ele_type: str = "Shell",
     resp_type: Optional[str] = None,
     resp_dof: Optional[str] = None,
+    shell_fiber_loc: Optional[Union[str, int]] = "top",
     savefig: Optional[str] = None,
     off_screen: bool = True,
     style: str = "surface",
@@ -585,14 +638,17 @@ def plot_unstruct_responses_animation(
     resp_type: str, default: None
         Response type, which dependents on the element type `ele_type`.
 
-        #. For ``Shell`` elements, one of ["sectionForces", "sectionDeformations"].
-            I.e., section forces and deformations at Gaussian integration points (per unit length).
+        #. For ``Shell`` elements, one of ["sectionForces", "sectionDeformations", "sectionForcesAtNodes", "sectionDeformationsAtNodes", "Stresses", "Strains", "StressesAtNodes", "StrainsAtNodes"].
+            If it endswith `AtNodes`, responses at nodes will be displayed,
+            else responses at Gaussian integration points will be averaged for each element (per unit length).
             If None, defaults to "sectionForces".
-        #. For ``Plane`` elements, one of ["stresses", "strains"].
-            I.e., stresses and strains at Gaussian integration points.
+        #. For ``Plane`` elements, one of ["stresses", "strains", "stressesAtNodes", "strainsAtNodes"].
+            If it endswith `AtNodes`, responses at nodes will be displayed,
+            else responses at Gaussian integration points will be averaged for each element.
             If None, defaults to "stresses".
-        #. For ``Brick`` or ``Solid`` elements, one of ["stresses", "strains"].
-            I.e., stresses and strains at Gaussian integration points.
+        #. For ``Brick`` or ``Solid`` elements, one of ["stresses", "strains", "stressesAtNodes", "strainsAtNodes"].
+            If it endswith `AtNodes`, responses at nodes will be displayed,
+            else responses at Gaussian integration points will be averaged for each element.
             If None, defaults to "stresses".
 
     resp_dof: str, default: None
@@ -602,7 +658,7 @@ def plot_unstruct_responses_animation(
             The `resp_dof` here is consistent with stress-strain (force-deformation),
             and whether it is stress or strain depends on the parameter `resp_type`.
 
-        #. For ``Shell`` elements, one of ["FXX", "FYY", "FXY", "MXX", "MYY", "MXY", "VXZ", "VYZ"].
+        #. For ``Shell`` elements, If resp_type is the section responses, one of ["FXX", "FYY", "FXY", "MXX", "MYY", "MXY", "VXZ", "VYZ"]. If resp_type is the stress or strain, one of ["sigma11", "sigma22", "sigma12", "sigma23", "sigma13"].
             If None, defaults to "MXX".
         #. For ``Plane`` elements, one of ["sigma11", "sigma22", "sigma12", "p1", "p2", "sigma_vm", "tau_max"].
 
@@ -622,6 +678,13 @@ def plot_unstruct_responses_animation(
             * "sigma_oct": Octahedral normal stress (strains).
             * "tau_oct": Octahedral shear stress (strains).
             * If None, defaults to "sigma_vm".
+
+    shell_fiber_loc: Optional[Union[str, int]], default: "top", added in v1.0.16
+        The location of the fiber point for shell elements.
+        If str, one of ["top", "bottom", "middle"].
+        If int, the index of the fiber point to be visualized, from 1 (bottom) to N (top).
+        The fiber point is the fiber layer in the shell section.
+        Note that this parameter is only valid for stresses and strains in shell elements.
 
     unit_symbol: str, default: None
         Unit symbol to be displayed in the plot.
@@ -664,7 +727,7 @@ def plot_unstruct_responses_animation(
     `Plotter.export_html <https://docs.pyvista.org/api/plotting/_autosummary/pyvista.plotter.export_html#pyvista.Plotter.export_html>`_.
     to export this plotter as an interactive scene to an HTML file.
     """
-    ele_type, resp_type, resp_dof = _check_input(ele_type, resp_type, resp_dof)
+    ele_type, resp_type, resp_dof, fiber_point = _check_input(ele_type, resp_type, resp_dof, fiber_pts=shell_fiber_loc)
     if savefig is None:
         savefig = f"{ele_type.capitalize()}RespAnimation.gif"
     model_info_steps, model_update, resp_step = loadODB(odb_tag, resp_type=ele_type)
@@ -680,7 +743,9 @@ def plot_unstruct_responses_animation(
     )
     plotbase = PlotUnstruResponse(model_info_steps, resp_step, model_update, node_resp_steps=node_resp_steps)
     plotbase.set_unit(symbol=unit_symbol, factor=unit_factor)
-    plotbase.refactor_resp_step(ele_tags=ele_tags, ele_type=ele_type, resp_type=resp_type, component=resp_dof)
+    plotbase.refactor_resp_step(
+        ele_tags=ele_tags, ele_type=ele_type, resp_type=resp_type, component=resp_dof, fiber_point=fiber_point
+    )
     plotbase.plot_anim(
         plotter,
         ele_tags=ele_tags,
@@ -702,10 +767,10 @@ def plot_unstruct_responses_animation(
     return plotbase._update_plotter(plotter, cpos)
 
 
-def _check_input(ele_type, resp_type, resp_dof):
+def _check_input(ele_type, resp_type, resp_dof, fiber_pts=None):
     if ele_type.lower() == "shell":
         ele_type = "Shell"
-        resp_type, resp_dof = _check_input_shell(resp_type, resp_dof)
+        resp_type, resp_dof, fiber_pts = _check_input_shell(resp_type, resp_dof, fiber_pts)
     elif ele_type.lower() == "plane":
         ele_type = "Plane"
         resp_type, resp_dof = _check_input_plane(resp_type, resp_dof)
@@ -714,109 +779,150 @@ def _check_input(ele_type, resp_type, resp_dof):
         resp_type, resp_dof = _check_input_solid(resp_type, resp_dof)
     else:
         raise ValueError(f"Not supported element type {ele_type}! Valid options are: Shell, Plane, Brick.")  # noqa: TRY003
-    return ele_type, resp_type, resp_dof
+    return ele_type, resp_type, resp_dof, fiber_pts
 
 
-def _check_input_shell(resp_type, resp_dof):
+def _check_input_shell(resp_type, resp_dof, fiber_pts=None):
     if resp_type is None:
         resp_type = "sectionForces"
-    if resp_type.lower() in ["sectionforces", "forces", "sectionforce", "force"]:
-        resp_type = "sectionForces"
-    elif resp_type.lower() in [
-        "sectiondeformations",
-        "sectiondeformation",
-        "secdeformations",
-        "secdeformation",
-        "deformations",
-        "deformation",
-        "defo",
-        "secdefo",
-    ]:
-        resp_type = "sectionDeformations"
+    resp_type_lower = resp_type.lower()
+
+    valid_resp_map = {
+        "sectionforces": "sectionForces",
+        "sectiondeformations": "sectionDeformations",
+        "sectionforcesatnodes": "sectionForcesAtNodes",
+        "sectiondeformationsatnodes": "sectionDeformationsAtNodes",
+        "stresses": "Stresses",
+        "strains": "Strains",
+        "stressesatnodes": "StressesAtNodes",
+        "strainsatnodes": "StrainsAtNodes",
+    }
+
+    if resp_type_lower not in valid_resp_map:
+        raise ValueError(
+            f"Not supported GP response type {resp_type}! Valid options are: "
+            + ", ".join(valid_resp_map.values())
+            + "."
+        )
+
+    resp_type = valid_resp_map[resp_type_lower]
+
+    if "section" in resp_type.lower():
+        valid_dofs = {"fxx", "fyy", "fxy", "mxx", "myy", "mxy", "vxz", "vyz"}
+        if resp_dof is None:
+            resp_dof = "MXX"
     else:
+        valid_dofs = {"sigma11", "sigma22", "sigma12", "sigma23", "sigma13"}
+        if resp_dof is None:
+            resp_dof = "sigma11"
+        # fiber_pts 检查
+        if fiber_pts is None:
+            fiber_pts = "top"
+        elif isinstance(fiber_pts, str):
+            fiber_pts = fiber_pts.lower()
+            if fiber_pts not in {"top", "bottom", "middle"}:
+                raise ValueError(f"Not supported fiber points {fiber_pts}! Valid options are: top, bottom, middle.")  # noqa: TRY003
+        else:
+            fiber_pts = int(fiber_pts)
+
+    if resp_dof.lower() not in valid_dofs:
         raise ValueError(  # noqa: TRY003
-            f"Not supported response type {resp_type}! Valid options are: sectionForces, sectionDeformations."
+            f"Not supported component {resp_dof}! Valid options are: {', '.join(d.upper() for d in valid_dofs)}."
         )
-    if resp_dof is None:
-        resp_dof = "MXX"
-    if resp_dof.lower() not in [
-        "fxx",
-        "fyy",
-        "fxy",
-        "mxx",
-        "myy",
-        "mxy",
-        "vxz",
-        "vyz",
-    ]:
-        raise ValueError(  # noqa: TRY003
-            f"Not supported component {resp_dof}! Valid options are: FXX, FYY, FXY, MXX, MYY, MXY, VXZ, VYZ."
-        )
-    return resp_type, resp_dof
+
+    return resp_type, resp_dof, fiber_pts
 
 
 def _check_input_plane(resp_type, resp_dof):
     if resp_type is None:
         resp_type = "Stresses"
-    if resp_type.lower() in ["stresses", "stress"]:
-        if resp_dof is None:
-            resp_dof = "sigma_vm"
-        if resp_dof.lower() in ["p1", "p2", "sigma_vm", "tau_max"]:
-            resp_type = "stressMeasures"
-        elif resp_dof.lower() in ["sigma11", "sigma22", "sigma12"]:
-            resp_type = "Stresses"
-        else:
-            raise ValueError(  # noqa: TRY003
-                f"Not supported component {resp_dof}! "
-                "Valid options are: sigma11, sigma22, sigma12, p1, p2, sigma_vm, tau_max."
-            )
-    elif resp_type.lower() in ["strains", "strain"]:
-        if resp_dof is None:
-            resp_dof = "sigma_vm"
-        if resp_dof.lower() in ["p1", "p2", "sigma_vm", "tau_max"]:
-            resp_type = "strainMeasures"
-        elif resp_dof.lower() in ["sigma11", "sigma22", "sigma12"]:
-            resp_type = "Strains"
-            resp_dof = resp_dof.replace("sigma", "eps")
-        else:
-            raise ValueError(  # noqa: TRY003
-                f"Not supported component {resp_dof}! "
-                "Valid options are: sigma11, sigma22, sigma12, p1, p2, sigma_vm, tau_max."
-            )
+
+    resp_type_lower = resp_type.lower()
+    type_map = {
+        "stresses": "Stresses",
+        "stress": "Stresses",
+        "stressesatnodes": "StressesAtNodes",
+        "stressatnodes": "StressesAtNodes",
+        "strains": "Strains",
+        "strain": "Strains",
+        "strainsatnodes": "StrainsAtNodes",
+        "strainatnodes": "StrainsAtNodes",
+    }
+
+    if resp_type_lower not in type_map:
+        raise ValueError(  # noqa: TRY003
+            f"Not supported response type {resp_type}! "
+            "Valid options are: Stresses, StressesAtNodes, Strains, StrainsAtNodes"
+        )
+
+    is_stress = "stress" in resp_type_lower
+    is_node = "nodes" in resp_type_lower
+
+    if resp_dof is None:
+        resp_dof = "sigma_vm"
+
+    resp_dof_lower = resp_dof.lower()
+    tensor_dofs = {"sigma11", "sigma22", "sigma12"}
+    measure_dofs = {"p1", "p2", "sigma_vm", "tau_max"}
+
+    if resp_dof_lower in measure_dofs:
+        resp_type = ("StressMeasures" if is_stress else "StrainMeasures") + ("AtNodes" if is_node else "")
+    elif resp_dof_lower in tensor_dofs:
+        resp_type = ("Stresses" if is_stress else "Strains") + ("AtNodes" if is_node else "")
+        if not is_stress:
+            resp_dof = resp_dof_lower.replace("sigma", "eps")
     else:
-        raise ValueError(f"Not supported response type {resp_type}! Valid options are: Stresses, Strains.")  # noqa: TRY003
+        raise ValueError(  # noqa: TRY003
+            f"Not supported component {resp_dof}! "
+            "Valid options are: sigma11, sigma22, sigma12, p1, p2, sigma_vm, tau_max."
+        )
+
     return resp_type, resp_dof
 
 
 def _check_input_solid(resp_type, resp_dof):
     if resp_type is None:
         resp_type = "Stresses"
-    if resp_type.lower() in ["stresses", "stress"]:
-        if resp_dof is None:
-            resp_dof = "sigma_vm"
-        if resp_dof.lower() in ["p1", "p2", "p3", "sigma_vm", "tau_max", "sigma_oct", "tau_oct"]:
-            resp_type = "stressMeasures"
-        elif resp_dof.lower() in ["sigma11", "sigma22", "sigma33", "sigma12", "sigma23", "sigma13"]:
-            resp_type = "Stresses"
-        else:
-            raise ValueError(  # noqa: TRY003
-                f"Not supported component {resp_dof}! "
-                "Valid options are: sigma11, sigma22, sigma33, sigma12, sigma23, sigma13, "
-                "p1, p2, p3, sigma_vm, tau_max, sigma_oct, tau_oct!"
-            )
-    elif resp_type.lower() in ["strains", "strain"]:
-        if resp_dof is None:
-            resp_dof = "sigma_vm"
-        if resp_dof.lower() in ["p1", "p2", "p3", "sigma_vm", "tau_max", "sigma_oct", "tau_oct"]:
-            resp_type = "strainMeasures"
-        elif resp_dof.lower() in ["sigma11", "sigma22", "sigma33", "sigma12", "sigma23", "sigma13"]:
-            resp_type = "Strains"
-            resp_dof = resp_dof.replace("sigma", "eps")
-        else:
-            raise ValueError(  # noqa: TRY003
-                f"Not supported component {resp_dof}! "
-                "Valid options are: sigma11, sigma22, sigma12, p1, p2, sigma_vm, tau_max."
-            )
+
+    resp_type_lower = resp_type.lower()
+    type_map = {
+        "stresses": "Stresses",
+        "stress": "Stresses",
+        "stressesatnodes": "StressesAtNodes",
+        "stressatnodes": "StressesAtNodes",
+        "strains": "Strains",
+        "strain": "Strains",
+        "strainsatnodes": "StrainsAtNodes",
+        "strainatnodes": "StrainsAtNodes",
+    }
+
+    if resp_type_lower not in type_map:
+        raise ValueError(  # noqa: TRY003
+            f"Not supported response type {resp_type}! "
+            "Valid options are: Stresses, StressesAtNodes, Strains, StrainsAtNodes"
+        )
+
+    is_stress = "stress" in resp_type_lower
+    is_node = "nodes" in resp_type_lower
+
+    if resp_dof is None:
+        resp_dof = "sigma_vm"
+
+    resp_dof_lower = resp_dof.lower()
+    tensor_dofs = {"sigma11", "sigma22", "sigma33", "sigma12", "sigma23", "sigma13"}
+    measure_dofs = {"p1", "p2", "p3", "sigma_vm", "tau_max", "sigma_oct", "tau_oct"}
+
+    if resp_dof_lower in measure_dofs:
+        resp_type = ("StressMeasures" if is_stress else "StrainMeasures") + ("AtNodes" if is_node else "")
+    elif resp_dof_lower in tensor_dofs:
+        resp_type = ("Stresses" if is_stress else "Strains") + ("AtNodes" if is_node else "")
+        if not is_stress:
+            resp_dof = resp_dof_lower.replace("sigma", "eps")
     else:
-        raise ValueError(f"Not supported response type {resp_type}! Valid options are: Stresses, Strains.")  # noqa: TRY003
+        raise ValueError(  # noqa: TRY003
+            f"Not supported component {resp_dof}! "
+            "Valid options are: sigma11, sigma22, sigma33, sigma12, sigma23, sigma13, "
+            "p1, p2, p3, sigma_vm, tau_max, sigma_oct, tau_oct."
+        )
+
     return resp_type, resp_dof
