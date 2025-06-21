@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "opstool"
-version = "1.0.15"
+version = "1.0.16"
 description = "opstool: A Python package for structural analysis and visualization using OpenSeesPy"
 authors = ["Yexiang Yan <yexiang_yan@outlook.com>"]
 repository = "https://github.com/yexiang1992/opstool"
@@ -31,6 +31,7 @@ ipywidgets = ">=8.1.5"
 trame-vtk = ">=2.8.12"
 trame-vuetify = ">=2.7.2"
 trame-components = ">=2.4.2"
+typing-extensions = "^4.14.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.2.0"

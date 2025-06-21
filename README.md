@@ -23,6 +23,13 @@ pip install --upgrade opstool
 The restriction on the python version mainly depends on `openseespy`,
 it is recommended that you use [Anaconda](https://www.anaconda.com/) to avoid library version incompatibilities.
 
+```bash
+conda create -n opensees python=3.12 numpy scipy pandas xarray notebook matplotlib
+conda activate opensees
+pip install openseespy
+pip install opstool
+```
+
 ## Document
 
 **Latest**: See [https://opstool.readthedocs.io/en/latest/](https://opstool.readthedocs.io/en/latest/).
@@ -31,6 +38,8 @@ it is recommended that you use [Anaconda](https://www.anaconda.com/) to avoid li
 
 > [!TIP]
 > Since an opstool version **v1.0.1**, the API and features have undergone significant changes and upgrades. As a result, it feels more like a new library, and you should take some time to familiarize yourself with the new interface usage.
+
+
 
 ## Citing
 
@@ -81,6 +90,9 @@ With ``opstool``, you can focus on what matters most:
 understanding and solving your structural engineering challenges. 
 Whether you are building models, visualizing results, or interpreting data, 
 ``opstool`` is your go-to solution for OpenSeesPy workflows.
+
+> [!NOTE]  
+> This project is a non-profit open-source initiative. Use at your own risk.
 
 ## License
 
