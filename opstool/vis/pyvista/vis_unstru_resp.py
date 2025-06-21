@@ -148,6 +148,9 @@ class PlotUnstruResponse(PlotResponseBase):
         if self.unit_symbol:
             info["unit"] = self.unit_symbol
             lines.insert(3, f"{info['unit']} (unit)")
+        if self.fiber_point and "Sec" not in resp_type:
+            info["fiber_point"] = self.fiber_point
+            lines.insert(3, f"{info['fiber_point']} (Fiber)")
 
         max_len = max(len(line) for line in lines)
         padded_lines = [line.rjust(max_len) for line in lines]
@@ -815,7 +818,7 @@ def _check_input_shell(resp_type, resp_dof, fiber_pts=None):
         valid_dofs = {"sigma11", "sigma22", "sigma12", "sigma23", "sigma13"}
         if resp_dof is None:
             resp_dof = "sigma11"
-        # fiber_pts 检查
+        # fiber_pts check
         if fiber_pts is None:
             fiber_pts = "top"
         elif isinstance(fiber_pts, str):
