@@ -50,7 +50,8 @@ class PlotUnstruResponse(PlotResponseBase):
 
             if self.ModelUpdate or ele_tags is not None:
                 tags, pos, _, _ = self._make_unstru_info(ele_tags, i)
-                da = da.sel(eleTags=tags)
+                if "eleTags" in da.dims:
+                    da = da.sel(eleTags=tags)
             else:
                 pos = self._get_node_da(i)
 
