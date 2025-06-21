@@ -1,9 +1,10 @@
 from types import SimpleNamespace
-from typing import Optional, TypedDict, Union, Unpack
+from typing import Optional, TypedDict, Union
 
 import numpy as np
 import openseespy.opensees as ops
 import xarray as xr
+from typing_extensions import Unpack
 
 from ..utils import CONFIGS, get_random_color
 from ._get_response import (
