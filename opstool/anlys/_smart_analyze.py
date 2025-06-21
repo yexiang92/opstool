@@ -1,6 +1,6 @@
 import time
 from contextlib import contextmanager
-from typing import Optional, Union
+from typing import Optional, TypedDict, Union
 
 import numpy as np
 import openseespy.opensees as ops
@@ -12,6 +12,7 @@ from rich.progress import (
     ProgressColumn,
     TextColumn,
 )
+from typing_extensions import Literal, Unpack
 
 from ..utils import get_random_color
 
@@ -36,6 +37,35 @@ class HHMMSSMSColumn(ProgressColumn):
         seconds = (total_ms // 1000) % 60
         millis = total_ms % 1000
         return f"[#037ef3]{hours:02} h : [#f85a40]{minutes:02} m : [#00c16e]{seconds:02} s : [#7552cc]{millis:03} ms"
+
+
+class _kargs_types(TypedDict):
+    testType: Literal[
+        "EnergyIncr",
+        "NormDispIncr",
+        "NormUnbalance",
+        "RelativeNormUnbalance",
+        "RelativeNormDispIncr",
+        "RelativeTotalNormDispIncr",
+        "RelativeEnergyIncr",
+        "FixedNumIter",
+    ]
+    testTol: float
+    testIterTimes: int
+    testPrintFlag: int
+    tryAddTestTimes: bool
+    normTol: float
+    testIterTimesMore: Union[int, list[int]]
+    tryLooseTestTol: bool
+    looseTestTolTo: float
+    tryAlterAlgoTypes: bool
+    algoTypes: list[int]
+    UserAlgoArgs: Optional[list[str]]
+    initialStep: Optional[float]
+    relaxation: float
+    minStep: float
+    debugMode: bool
+    printPer: int
 
 
 class SmartAnalyze:
@@ -269,7 +299,7 @@ class SmartAnalyze:
     >>>)
     """
 
-    def __init__(self, analysis_type="Transient", **kargs):
+    def __init__(self, analysis_type: Literal["Transient", "Static"] = "Transient", **kargs: Unpack[_kargs_types]):
         if analysis_type not in ("Transient", "Static"):
             raise ValueError("analysis_type must Transient or Static!")  # noqa: TRY003
         # default
