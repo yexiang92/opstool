@@ -351,7 +351,8 @@ class PlotFrameResponse(PlotResponseBase):
             f"* {info['dof']} (DOF)",
             f"{info['min']:.3E} (min)",
             f"{info['max']:.3E} (max)",
-            f"{info['step']}(step); {info['time']:.3f}(time)",
+            f"{info['step']} (step)",
+            f"{info['time']:.3f} (time)",
         ]
         if self.unit_symbol:
             info["unit"] = self.unit_symbol
@@ -428,7 +429,7 @@ class PlotFrameResponse(PlotResponseBase):
         if scalar_bar:
             # scalar_bar.SetTitle(title)
             title_prop = scalar_bar.GetTitleTextProperty()
-            title_prop.SetJustificationToRight()
+            # title_prop.SetJustificationToRight()
             title_prop.BoldOn()
 
         title_grid = (

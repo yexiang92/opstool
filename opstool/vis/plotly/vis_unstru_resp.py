@@ -215,9 +215,9 @@ class PlotUnstruResponse(PlotResponseBase):
         if self.unit_symbol:
             unit_txt = self._set_txt_props(self.unit_symbol)
             title += f"<b>(unit) {unit_txt}</b><br>"
-        if self.fiber_point and "Sec" not in resp_type:
+        if self.fiber_point and "Sec" not in resp_type and self.ele_type.lower() == "shell":
             fiber_point = self._set_txt_props(self.fiber_point)
-            title += f"<b>(Fiber) {fiber_point}</b><br>"
+            title += f"<b>* (Fiber) {fiber_point}</b><br>"
         maxv = self._set_txt_props(f"{maxv:.3E}")
         minv = self._set_txt_props(f"{minv:.3E}")
         title += f"<b>Max.:</b> {maxv}<br><b>Min.:</b> {minv}"

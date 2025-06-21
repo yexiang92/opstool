@@ -118,7 +118,8 @@ class PlotTrussResponse(PlotResponseBase):
             f"* {info['resp_type']}",
             f"{info['min']:.3E} (min)",
             f"{info['max']:.3E} (max)",
-            f"{info['step']}(step); {info['time']:.3f}(time)",
+            f"{info['step']} (step)",
+            f"{info['time']:.3f} (time)",
         ]
         if self.unit_symbol:
             info["unit"] = self.unit_symbol
@@ -228,7 +229,7 @@ class PlotTrussResponse(PlotResponseBase):
         scalar_bar = plotter.add_scalar_bar(title=title, **self.pargs.scalar_bar_kargs) if color is None else None
         if scalar_bar:
             title_prop = scalar_bar.GetTitleTextProperty()
-            title_prop.SetJustificationToRight()
+            # title_prop.SetJustificationToRight()
             title_prop.BoldOn()
 
         title_grid = (

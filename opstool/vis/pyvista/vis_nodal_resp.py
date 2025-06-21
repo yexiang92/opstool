@@ -109,7 +109,8 @@ class PlotNodalResponse(PlotResponseBase):
             f"* {info['dof']} (DOF)",
             f"{info['min']:.3E} ({size_symbol[0]})",
             f"{info['max']:.3E} ({size_symbol[1]})",
-            f"{info['step']}(step); {info['time']:.3f}(time)",
+            f"{info['step']} (step)",
+            f"{info['time']:.3f} (time)",
         ]
         if self.unit_symbol:
             info["unit"] = self.unit_symbol
@@ -178,7 +179,7 @@ class PlotNodalResponse(PlotResponseBase):
         if scalar_bar:
             # scalar_bar.SetTitle(title)
             title_prop = scalar_bar.GetTitleTextProperty()
-            title_prop.SetJustificationToRight()
+            # title_prop.SetJustificationToRight()
             title_prop.BoldOn()
         if show_outline:
             self._plot_outline(plotter)

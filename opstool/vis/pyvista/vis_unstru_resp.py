@@ -143,14 +143,15 @@ class PlotUnstruResponse(PlotResponseBase):
             f"* {info['dof']} (DOF)",
             f"{info['min']:.3E} (min)",
             f"{info['max']:.3E} (max)",
-            f"{info['step']}(step); {info['time']:.3f}(time)",
+            f"{info['step']} (step)",
+            f"{info['time']:.3f} (time)",
         ]
         if self.unit_symbol:
             info["unit"] = self.unit_symbol
             lines.insert(3, f"{info['unit']} (unit)")
-        if self.fiber_point and "Sec" not in resp_type:
+        if self.fiber_point and "Sec" not in resp_type and self.ele_type.lower() == "shell":
             info["fiber_point"] = self.fiber_point
-            lines.insert(3, f"{info['fiber_point']} (Fiber)")
+            lines.insert(3, f"* {info['fiber_point']} (Fiber)")
 
         max_len = max(len(line) for line in lines)
         padded_lines = [line.rjust(max_len) for line in lines]
@@ -207,7 +208,7 @@ class PlotUnstruResponse(PlotResponseBase):
         if scalar_bar:
             # scalar_bar.SetTitle(title)
             title_prop = scalar_bar.GetTitleTextProperty()
-            title_prop.SetJustificationToRight()
+            # title_prop.SetJustificationToRight()
             title_prop.BoldOn()
 
         if show_outline:

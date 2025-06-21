@@ -24,6 +24,7 @@ _scalar_bar_kargs = {
     "title_font_size": None,
     "position_x": 0.825,
     "position_y": 0.05,
+    "outline": False,
 }
 
 
