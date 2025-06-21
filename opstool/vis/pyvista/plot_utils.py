@@ -1,10 +1,11 @@
 from types import SimpleNamespace
-from typing import Optional
+from typing import Optional, TypedDict
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pyvista as pv
 import vtk
+from typing_extensions import Unpack
 
 from ...utils import CONFIGS, OPS_ELE_TYPES
 
@@ -24,6 +25,59 @@ _scalar_bar_kargs = {
     "position_x": 0.825,
     "position_y": 0.05,
 }
+
+
+class _PLOT_ARGS_TYPES1(TypedDict):
+    point_size: float
+    line_width: float
+    theme: str
+    window_size: tuple[int, int]
+    render_points_as_spheres: bool
+    render_lines_as_tubes: bool
+    anti_aliasing: str
+    msaa_multi_samples: int
+    smooth_shading: Optional[bool]
+    lighting: Optional[bool]
+    line_smoothing: bool
+    polygon_smoothing: bool
+    notebook: bool
+    jupyter_backend: str
+    font_family: Optional[str]
+    scale_factor: float
+    show_mesh_edges: bool
+    mesh_edge_color: str
+    mesh_edge_width: float
+    mesh_opacity: float
+    font_size: int
+    title_font_size: int
+    off_screen: bool
+    scalar_bar_kargs: dict
+    cmap: list | None | str  # or str for named colorscale, default is default_cmap
+    cmap_model: list | None | str  # or str for named colorscale, default is None
+
+
+class _PLOT_ARGS_TYPES2(TypedDict):
+    point: str | list[int]
+    frame: str | list[int]
+    beam: str | list[int]
+    truss: str | list[int]
+    link: str | list[int]
+    shell: str | list[int]
+    plane: str | list[int]
+    brick: str | list[int]
+    tet: str | list[int]
+    joint: str | list[int]
+    contact: str | list[int]
+    pfem: str | list[int]
+    constraint: str | list[int]
+    bc: str | list[int]
+    cmap: list | None | str  # or str for named colorscale, default is default_cmap
+    cmap_model: list | None | str  # or str for named colorscale, default is None
+    n_colors: int
+    color_map: list | None | str
+    nodal_label: str | list[int]
+    ele_label: str | list[int]
+
 
 PLOT_ARGS = SimpleNamespace(
     point_size=1.0,
@@ -74,7 +128,7 @@ PLOT_ARGS = SimpleNamespace(
 )
 
 
-def set_plot_props(**kwargs):
+def set_plot_props(**kwargs: Unpack[_PLOT_ARGS_TYPES1]) -> None:
     """
     Set ploting properties.
 
@@ -246,9 +300,7 @@ def set_plot_props(**kwargs):
             setattr(PLOT_ARGS, key, value)
 
 
-def set_plot_colors(
-    **kwargs,
-):
+def set_plot_colors(**kwargs: Unpack[_PLOT_ARGS_TYPES2]) -> None:
     """
     Set the display color of various element types.
 

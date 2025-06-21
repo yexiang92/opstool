@@ -1,9 +1,11 @@
 from types import SimpleNamespace
+from typing import TypedDict
 
 import matplotlib.pyplot as plt
 import numpy as np
 import plotly.graph_objs as go
 from matplotlib.colors import to_hex
+from typing_extensions import Unpack
 
 from ...utils import OPS_ELE_TYPES
 
@@ -20,6 +22,43 @@ default_cmap = [
     [1.0, "rgb(49,54,149)"],
 ]
 default_cmap = [[1.0 - x[0], x[1]] for x in default_cmap[::-1]]
+
+
+class _PLOT_ARGS_TYPES1(TypedDict):
+    point_size: float
+    line_width: float
+    theme: str
+    scale_factor: float
+    show_mesh_edges: bool
+    mesh_edge_color: str
+    mesh_edge_width: float
+    mesh_opacity: float
+    font_size: int
+    title_font_size: int
+    font_family: str
+    window_size: tuple[int | None, int | None]
+    cmap: list | None | str  # or str for named colorscale, default is default_cmap
+    cmap_model: list | None | str  # or str for named colorscale, default is None
+
+
+class _PLOT_ARGS_TYPES2(TypedDict):
+    point: str
+    frame: str
+    beam: str
+    truss: str
+    link: str
+    shell: str
+    plane: str
+    brick: str
+    tet: str
+    joint: str
+    contact: str
+    pfem: str
+    constraint: str
+    bc: str
+    cmap: list | None | str  # or str for named colorscale, default is default_cmap
+    cmap_model: list | None | str  # or str for named colorscale, default is None
+
 
 PLOT_ARGS = SimpleNamespace(
     point_size=3.0,
@@ -54,9 +93,7 @@ PLOT_ARGS = SimpleNamespace(
 )
 
 
-def set_plot_props(
-    **kwargs,
-):
+def set_plot_props(**kwargs: Unpack[_PLOT_ARGS_TYPES1]):
     """
     Set ploting properties.
 
@@ -131,7 +168,7 @@ def set_plot_props(
         setattr(PLOT_ARGS, key, value)
 
 
-def set_plot_colors(**kwargs):
+def set_plot_colors(**kwargs: Unpack[_PLOT_ARGS_TYPES2]):
     """
     Set the display color of various element types.
 
