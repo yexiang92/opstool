@@ -387,17 +387,17 @@ def _get_elastic_sec_defo(eletag, sec_force, basic_d, length, xlocs):
     sec_d[:, 0] = basic_d[0] * oneOverL  # N
     sec_d[:, 5] = basic_d[5] * oneOverL  # T
     if E * Iz > eps:
-        sec_d[:, 1] = sec_force[:, 1] / E / Iz  # MZ
+        sec_d[:, 1] = sec_force[:, 1] / (E * Iz)  # MZ
     else:
         sec_d[:, 1] = oneOverL * ((xi6 - 4.0) * basic_d[1] + (xi6 - 2.0) * basic_d[2])  # MZ
     if E * Iy > eps:
-        sec_d[:, 3] = sec_force[:, 3] / E / Iy  # MY
+        sec_d[:, 3] = sec_force[:, 3] / (E * Iy)  # MY
     else:
         sec_d[:, 3] = oneOverL * ((xi6 - 4.0) * basic_d[3] + (xi6 - 2.0) * basic_d[4])  # MY
     if G * Avy > eps:
-        sec_d[:, 2] = sec_force[:, 2] / G / Avy
+        sec_d[:, 2] = sec_force[:, 2] / (G * Avy)
     if G * Avz > eps:
-        sec_d[:, 4] = sec_force[:, 4] / G / Avz
+        sec_d[:, 4] = sec_force[:, 4] / (G * Avz)
     return sec_d
 
 
