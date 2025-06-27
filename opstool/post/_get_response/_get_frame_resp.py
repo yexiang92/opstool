@@ -4,9 +4,10 @@ import numpy as np
 import openseespy.opensees as ops
 import xarray as xr
 
+from ...utils import suppress_ops_print
 from ._response_base import ResponseBase, _expand_to_uniform_array
 
-ELASTIC_BEAM_CLASSES = [3, 5, 5001, 145, 146, 63, 631]
+ELASTIC_BEAM_CLASSES = [3, 4, 5, 5001, 145, 146, 63, 631]
 
 
 class FrameRespStepData(ResponseBase):
@@ -304,14 +305,8 @@ def _get_beam_sec_resp(beam_tags, ele_load_data, local_forces, basic_disp, n_sec
         eletag = int(eletag)
         if ops.getEleClassTags(eletag)[0] in ELASTIC_BEAM_CLASSES:
             xlocs = np.linspace(0, 1.0, n_secs_elastic_beam)
-            sec_f = _get_sec_forces(eletag, length, ele_load_data, pattern_tags, load_eletags, local_f, xlocs)
-            # sec defo
-            xi6, oneOverL = 6 * xlocs, 1.0 / length
-            sec_d = np.zeros_like(sec_f)
-            sec_d[:, 0] = basic_d[0] * oneOverL  # N
-            sec_d[:, 1] = oneOverL * ((xi6 - 4.0) * basic_d[1] + (xi6 - 2.0) * basic_d[2])  # MZ
-            sec_d[:, 3] = oneOverL * ((xi6 - 4.0) * basic_d[3] + (xi6 - 2.0) * basic_d[4])  # MY
-            sec_d[:, 5] = oneOverL * basic_d[5]
+            sec_f = _get_elastic_sec_forces(eletag, length, ele_load_data, pattern_tags, load_eletags, local_f, xlocs)
+            sec_d = _get_elastic_sec_defo(eletag, sec_f, basic_d, length, xlocs)
         else:
             xlocs, sec_f, sec_d = _get_nonlinear_section_response(eletag, length)
 
@@ -363,7 +358,50 @@ def _format_six_component(vec):
     return vec[:6]
 
 
-def _get_sec_forces(ele_tag, length, ele_load_data, pattern_tags, load_eletags, local_force, xlocs):
+def _get_param_value(eletag, param_name):
+    paramTag = 1
+    paramTags = ops.getParamTags()
+    if len(paramTags) > 0:
+        paramTag = max(paramTags) + 1
+    ops.parameter(paramTag, "element", eletag, param_name)
+    value = ops.getParamValue(paramTag)
+    ops.remove("parameter", paramTag)
+    return value
+
+
+def _get_elastic_sec_defo(eletag, sec_force, basic_d, length, xlocs):
+    with suppress_ops_print():
+        # A = _get_param_value(eletag, "A")
+        E = _get_param_value(eletag, "E")
+        Iz = _get_param_value(eletag, "Iz")
+        Iy = _get_param_value(eletag, "Iy")
+        G = _get_param_value(eletag, "G")
+        # J = _get_param_value(eletag, "J")
+        Avy = _get_param_value(eletag, "Avy")
+        Avz = _get_param_value(eletag, "Avz")
+
+    # N1, Mz1, Vy1, My1, Vz1, T1
+    eps = 1e-10
+    sec_d = np.zeros_like(sec_force)
+    oneOverL, xi6 = 1.0 / length, 6 * xlocs
+    sec_d[:, 0] = basic_d[0] * oneOverL  # N
+    sec_d[:, 5] = basic_d[5] * oneOverL  # T
+    if E * Iz > eps:
+        sec_d[:, 1] = sec_force[:, 1] / E / Iz  # MZ
+    else:
+        sec_d[:, 1] = oneOverL * ((xi6 - 4.0) * basic_d[1] + (xi6 - 2.0) * basic_d[2])  # MZ
+    if E * Iy > eps:
+        sec_d[:, 3] = sec_force[:, 3] / E / Iy  # MY
+    else:
+        sec_d[:, 3] = oneOverL * ((xi6 - 4.0) * basic_d[3] + (xi6 - 2.0) * basic_d[4])  # MY
+    if G * Avy > eps:
+        sec_d[:, 2] = sec_force[:, 2] / G / Avy
+    if G * Avz > eps:
+        sec_d[:, 4] = sec_force[:, 4] / G / Avz
+    return sec_d
+
+
+def _get_elastic_sec_forces(ele_tag, length, ele_load_data, pattern_tags, load_eletags, local_force, xlocs):
     sec_locs = xlocs
     sec_x = sec_locs * length
     sec_f = np.full((len(xlocs), 6), 0.0)
