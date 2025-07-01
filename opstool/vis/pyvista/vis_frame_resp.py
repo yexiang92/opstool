@@ -20,6 +20,7 @@ class PlotFrameResponse(PlotResponseBase):
         super().__init__(model_info_steps, beam_resp_step, model_update, nodal_resp_steps=node_resp_steps)
         self.resp_factor = 1.0
         self.plot_axis = None
+        self.plot_axis_sign = 1.0
         self.sec_locs = None
 
         self.component_type = None
@@ -29,25 +30,13 @@ class PlotFrameResponse(PlotResponseBase):
             self.resp_type = "localForces"
         elif resp_type.lower() in ["basicforces", "basicforce"]:
             self.resp_type = "basicForces"
-        elif resp_type.lower() in [
-            "basicdeformations",
-            "basicdeformation",
-            "basicdefo",
-        ]:
+        elif resp_type.lower() in ["basicdeformations", "basicdeformation", "basicdefo"]:
             self.resp_type = "basicDeformations"
-        elif resp_type.lower() in [
-            "plasticdeformation",
-            "plasticdeformations",
-            "plasticdefo",
-        ]:
+        elif resp_type.lower() in ["plasticdeformation", "plasticdeformations", "plasticdefo"]:
             self.resp_type = "plasticDeformation"
         elif resp_type.lower() in ["sectionforces", "sectionforce"]:
             self.resp_type = "sectionForces"
-        elif resp_type.lower() in [
-            "sectiondeformations",
-            "sectiondeformation",
-            "sectiondefo",
-        ]:
+        elif resp_type.lower() in ["sectiondeformations", "sectiondeformation", "sectiondefo"]:
             self.resp_type = "sectionDeformations"
         else:
             raise ValueError(  # noqa: TRY003
@@ -59,11 +48,7 @@ class PlotFrameResponse(PlotResponseBase):
         self.component_type = component.upper()
         if self.resp_type == "localForces":
             self._set_comp_type_local(component)
-        elif self.resp_type in [
-            "basicForces",
-            "basicDeformations",
-            "plasticDeformation",
-        ]:
+        elif self.resp_type in ["basicForces", "basicDeformations", "plasticDeformation"]:
             self._set_comp_type_basic(component)
         else:
             self._set_comp_type_section(component)
@@ -73,26 +58,32 @@ class PlotFrameResponse(PlotResponseBase):
             self.component = ["FX1", "FX2"]
             self.resp_factor = np.array([-1.0, 1.0])
             self.plot_axis = "y"
+            self.plot_axis_sign = 1
         elif comp_type.upper() == "FY":
             self.component = ["FY1", "FY2"]
             self.resp_factor = np.array([-1.0, 1.0])
             self.plot_axis = "y"
+            self.plot_axis_sign = 1
         elif comp_type.upper() == "FZ":
             self.component = ["FZ1", "FZ2"]
             self.resp_factor = np.array([-1.0, 1.0])
             self.plot_axis = "z"
+            self.plot_axis_sign = 1
         elif comp_type.upper() == "MX":
             self.component = ["MX1", "MX2"]
             self.resp_factor = np.array([-1.0, 1.0])
             self.plot_axis = "y"
+            self.plot_axis_sign = 1
         elif comp_type.upper() == "MY":
             self.component = ["MY1", "MY2"]
             self.plot_axis = "z"
+            self.plot_axis_sign = -1
             self.resp_factor = np.array([1.0, -1.0])
         elif comp_type.upper() == "MZ":
             self.component = ["MZ1", "MZ2"]
             self.resp_factor = np.array([-1.0, 1.0])
             self.plot_axis = "y"
+            self.plot_axis_sign = -1
         else:
             raise ValueError(  # noqa: TRY003
                 f"Invalid component type for localForces: {comp_type}. Valid options are: FX, FY, FZ, MX, MY, MZ."
@@ -102,17 +93,21 @@ class PlotFrameResponse(PlotResponseBase):
         if comp_type.upper() == "N":
             self.component = ["N", "N"]
             self.plot_axis = "y"
+            self.plot_axis_sign = 1
         elif comp_type.upper() == "MZ":
             self.component = ["MZ1", "MZ2"]
             self.resp_factor = np.array([-1.0, 1.0])
             self.plot_axis = "y"
+            self.plot_axis_sign = -1
         elif comp_type.upper() == "MY":
             self.component = ["MY1", "MY2"]
             self.resp_factor = np.array([1.0, -1.0])
             self.plot_axis = "z"
+            self.plot_axis_sign = -1
         elif comp_type.upper() == "T":
             self.component = ["T", "T"]
             self.plot_axis = "y"
+            self.plot_axis_sign = 1
         else:
             raise ValueError(  # noqa: TRY003
                 f"Invalid component type for {self.resp_type}: {comp_type}. Valid options are: N, MZ, MY, T."
@@ -122,9 +117,13 @@ class PlotFrameResponse(PlotResponseBase):
         if comp_type.upper() in ["N", "MZ", "VY", "T"]:
             self.component = comp_type.upper()
             self.plot_axis = "y"
+            self.plot_axis_sign = -1
+            self.resp_factor = 1.0
         elif comp_type.upper() in ["VZ", "MY"]:
             self.component = comp_type.upper()
             self.plot_axis = "z"
+            self.plot_axis_sign = 1
+            self.resp_factor = 1.0
         else:
             raise ValueError(  # noqa: TRY003
                 f"Invalid component type for {self.resp_type}: {comp_type}. Valid options are: N, MZ, VY, MY, VZ, T."
@@ -317,7 +316,7 @@ class PlotFrameResponse(PlotResponseBase):
                 force = resp[i][~np.isnan(resp[i])]
                 force_scale = resp_scale[i][~np.isnan(resp_scale[i])]
             pos1 = [coord1 + loc * (coord2 - coord1) for loc in locs]  # lower
-            pos2 = [coord + force_scale[i] * axis for i, coord in enumerate(pos1)]  # upper
+            pos2 = [coord + force_scale[i] * axis * self.plot_axis_sign for i, coord in enumerate(pos1)]  # upper
 
             self._set_segment_mesh(pos1, pos2, force, resp_points, resp_cells, scalars)
             self._set_segment_label(show_values, pos2, force, label_points, labels)
@@ -384,7 +383,7 @@ class PlotFrameResponse(PlotResponseBase):
         step = round(value)
         resp = self.resp_step[step].to_numpy()
         resp_scale = resp * alpha
-        beam_tags, beam_node_coords, beam_cells, yaxis, zaxis = self._make_frame_info(ele_tags, step)
+        _, beam_node_coords, beam_cells, yaxis, zaxis = self._make_frame_info(ele_tags, step)
         axis_data = yaxis if self.plot_axis == "y" else zaxis
         sec_locs = self.sec_locs[step].to_numpy()
         resp_points, resp_cells, scalars, labels, label_poins = self._get_resp_mesh(
@@ -394,11 +393,6 @@ class PlotFrameResponse(PlotResponseBase):
         plotter.clear_actors()  # !!!!!!
         if plot_all_mesh:
             self._plot_all_mesh(plotter, color="gray", step=step)
-        # point_plot = _plot_points(
-        #     plotter, pos=beam_node_coords, color=self.pargs.color_point,
-        #     size=self.pargs.point_size,
-        #     render_points_as_spheres=self.pargs.render_points_as_spheres
-        # )
         line_grid = _plot_lines(
             plotter,
             pos=beam_node_coords,
