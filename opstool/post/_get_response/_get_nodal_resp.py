@@ -87,6 +87,7 @@ class NodalRespStepData(ResponseBase):
         return self.step_track
 
     def _to_xarray(self):
+        self.times = np.array(self.times, dtype=self.dtype["float"])
         if self.model_update:
             self.resp_steps = xr.concat(self.resp_steps_list, dim="time", join="outer")
             self.resp_steps.coords["time"] = self.times
