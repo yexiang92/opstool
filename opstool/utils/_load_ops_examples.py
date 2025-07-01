@@ -97,7 +97,7 @@ def load_ops_examples(name: str):  # noqa: C901
 
         SuspensionBridge()
         # exec("from opstool.ops_models.SuspensionBridge import *")
-    elif name.lower() == "FiberSection":
+    elif name.lower() == "fibersection":
         from .ops_models.FiberSec import FiberSection
 
         FiberSection()
