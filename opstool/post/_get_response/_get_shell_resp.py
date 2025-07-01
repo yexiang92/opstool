@@ -100,14 +100,12 @@ class ShellRespStepData(ResponseBase):
             if self.compute_nodal_resp:
                 data_vars["sectionForcesAtNodes"] = (["nodeTags", "secDOFs"], node_sec_forces_avg)
                 data_vars["sectionDeformationsAtNodes"] = (["nodeTags", "secDOFs"], node_sec_defo_avg)
-                data_vars["StressesAtNodes"] = (["nodeTags", "fiberPoints", "stressDOFs"], node_stresses_avg)
-                data_vars["StrainsAtNodes"] = (["nodeTags", "fiberPoints", "stressDOFs"], node_strains_avg)
+                if len(node_stresses_avg) > 0:
+                    data_vars["StressesAtNodes"] = (["nodeTags", "fiberPoints", "stressDOFs"], node_stresses_avg)
+                if len(node_strains_avg) > 0:
+                    data_vars["StrainsAtNodes"] = (["nodeTags", "fiberPoints", "stressDOFs"], node_strains_avg)
                 coords["nodeTags"] = node_tags
-            ds = xr.Dataset(
-                data_vars=data_vars,
-                coords=coords,
-                attrs=self.attrs,
-            )
+            ds = xr.Dataset(data_vars=data_vars, coords=coords, attrs=self.attrs)
             self.resp_steps_list.append(ds)
         else:
             self.resp_steps_dict["sectionForces"].append(sec_forces)
@@ -117,8 +115,10 @@ class ShellRespStepData(ResponseBase):
             if self.compute_nodal_resp:
                 self.resp_steps_dict["sectionForcesAtNodes"].append(node_sec_forces_avg)
                 self.resp_steps_dict["sectionDeformationsAtNodes"].append(node_sec_defo_avg)
-                self.resp_steps_dict["StressesAtNodes"].append(node_stresses_avg)
-                self.resp_steps_dict["StrainsAtNodes"].append(node_strains_avg)
+                if len(node_stresses_avg) > 0:
+                    self.resp_steps_dict["StressesAtNodes"].append(node_stresses_avg)
+                if len(node_strains_avg) > 0:
+                    self.resp_steps_dict["StrainsAtNodes"].append(node_strains_avg)
 
         self.times.append(ops.getTime())
         self.step_track += 1
@@ -163,14 +163,16 @@ class ShellRespStepData(ResponseBase):
                     ["time", "nodeTags", "secDOFs"],
                     self.resp_steps_dict["sectionDeformationsAtNodes"],
                 )
-                data_vars["StressesAtNodes"] = (
-                    ["time", "nodeTags", "fiberPoints", "stressDOFs"],
-                    self.resp_steps_dict["StressesAtNodes"],
-                )
-                data_vars["StrainsAtNodes"] = (
-                    ["time", "nodeTags", "fiberPoints", "stressDOFs"],
-                    self.resp_steps_dict["StrainsAtNodes"],
-                )
+                if len(self.resp_steps_dict["StressesAtNodes"]) > 0:
+                    data_vars["StressesAtNodes"] = (
+                        ["time", "nodeTags", "fiberPoints", "stressDOFs"],
+                        self.resp_steps_dict["StressesAtNodes"],
+                    )
+                if len(self.resp_steps_dict["StrainsAtNodes"]) > 0:
+                    data_vars["StrainsAtNodes"] = (
+                        ["time", "nodeTags", "fiberPoints", "stressDOFs"],
+                        self.resp_steps_dict["StrainsAtNodes"],
+                    )
                 coords["nodeTags"] = self.node_tags
             self.resp_steps = xr.Dataset(data_vars=data_vars, coords=coords, attrs=self.attrs)
 
