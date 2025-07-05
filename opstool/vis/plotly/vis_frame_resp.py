@@ -11,7 +11,6 @@ from .plot_utils import _plot_lines, _plot_points_cmap, _plot_unstru_cmap
 class PlotFrameResponse(PlotResponseBase):
     def __init__(self, model_info_steps, beam_resp_step, model_update):
         super().__init__(model_info_steps, beam_resp_step, model_update)
-        self.resp_factor = 1.0
         self.plot_axis = None
         self.plot_axis_sign = 1.0
         self.sec_locs = None
@@ -52,32 +51,26 @@ class PlotFrameResponse(PlotResponseBase):
     def _set_comp_type_local(self, comp_type):
         if comp_type.upper() == "FX":
             self.component = ["FX1", "FX2"]
-            self.resp_factor = np.array([-1.0, 1.0])
             self.plot_axis = "y"
             self.plot_axis_sign = 1.0
         elif comp_type.upper() == "FY":
             self.component = ["FY1", "FY2"]
-            self.resp_factor = np.array([-1.0, 1.0])
             self.plot_axis = "y"
             self.plot_axis_sign = 1.0
         elif comp_type.upper() == "FZ":
             self.component = ["FZ1", "FZ2"]
-            self.resp_factor = np.array([-1.0, 1.0])
             self.plot_axis = "z"
             self.plot_axis_sign = 1.0
         elif comp_type.upper() == "MX":
             self.component = ["MX1", "MX2"]
-            self.resp_factor = np.array([-1.0, 1.0])
             self.plot_axis = "y"
             self.plot_axis_sign = 1.0
         elif comp_type.upper() == "MY":
             self.component = ["MY1", "MY2"]
             self.plot_axis = "z"
             self.plot_axis_sign = -1.0
-            self.resp_factor = np.array([1.0, -1.0])
         elif comp_type.upper() == "MZ":
             self.component = ["MZ1", "MZ2"]
-            self.resp_factor = np.array([-1.0, 1.0])
             self.plot_axis = "y"
             self.plot_axis_sign = -1.0
         else:
@@ -92,12 +85,10 @@ class PlotFrameResponse(PlotResponseBase):
             self.plot_axis_sign = 1.0
         elif comp_type.upper() == "MZ":
             self.component = ["MZ1", "MZ2"]
-            self.resp_factor = np.array([-1.0, 1.0])
             self.plot_axis = "y"
             self.plot_axis_sign = -1.0
         elif comp_type.upper() == "MY":
             self.component = ["MY1", "MY2"]
-            self.resp_factor = np.array([1.0, -1.0])
             self.plot_axis = "z"
             self.plot_axis_sign = -1.0
         elif comp_type.upper() == "T":
@@ -167,14 +158,14 @@ class PlotFrameResponse(PlotResponseBase):
             for i in range(self.num_steps):
                 beam_tags, _, _, _, _ = self._make_frame_info(ele_tags, i)
                 da = self._get_resp_da(i, self.resp_type, self.component)
-                da = da.sel(eleTags=beam_tags) * self.resp_factor
+                da = da.sel(eleTags=beam_tags)
                 resps.append(da)
                 sec_da = self._get_sec_loc(i)
                 sec_locs.append(sec_da.sel(eleTags=beam_tags))
         else:
             for i in range(self.num_steps):
                 da = self._get_resp_da(i, self.resp_type, self.component)
-                resps.append(da * self.resp_factor)
+                resps.append(da)
                 sec_da = self._get_sec_loc(i)
                 sec_locs.append(sec_da)
 
