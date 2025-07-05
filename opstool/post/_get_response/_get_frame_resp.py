@@ -268,6 +268,23 @@ def _get_beam_local_force(beam_tags, resp_types, dtype):
                 0.0,
                 forces[5],
             ]
+        elif len(forces) > 12:
+            forces = forces[:6] + forces[7:12]
+        # Change the signs
+        forces = [
+            -forces[0],  # Fx1
+            -forces[1],  # Fy1
+            -forces[2],  # Fz1
+            -forces[3],  # Mx1
+            forces[4],  # My1
+            -forces[5],  # Mz1
+            forces[6],  # Fx2
+            forces[7],  # Fy2
+            forces[8],  # Fz2
+            forces[9],  # Mx2
+            -forces[10],  # Mz2
+            forces[11],  # Mz2
+        ]
         local_forces.append(forces)
     return np.array(local_forces, dtype=dtype["float"])
 
@@ -292,6 +309,14 @@ def _get_beam_basic_resp(beam_tags, resp_types, dtype):
                 0.0,  # My2
                 0.0,  # T
             ]
+        resp = [
+            resp[0],  # N
+            -resp[1],  # MZ1
+            resp[2],  # Mz2
+            resp[3],  # My1
+            -resp[4],  # My2
+            resp[5],  # T
+        ]
         basic_resps.append(resp)
     return np.array(basic_resps, dtype=dtype["float"])
 
@@ -390,11 +415,11 @@ def _get_elastic_sec_defo(eletag, sec_force, basic_d, length, xlocs):
     if E * Iz > eps:
         sec_d[:, 1] = sec_force[:, 1] / (E * Iz)  # MZ
     else:
-        sec_d[:, 1] = oneOverL * ((xi6 - 4.0) * basic_d[1] + (xi6 - 2.0) * basic_d[2])  # MZ
+        sec_d[:, 1] = oneOverL * ((xi6 - 4.0) * (-basic_d[1]) + (xi6 - 2.0) * basic_d[2])  # MZ
     if E * Iy > eps:
         sec_d[:, 3] = sec_force[:, 3] / (E * Iy)  # MY
     else:
-        sec_d[:, 3] = oneOverL * ((xi6 - 4.0) * basic_d[3] + (xi6 - 2.0) * basic_d[4])  # MY
+        sec_d[:, 3] = oneOverL * ((xi6 - 4.0) * basic_d[3] + (xi6 - 2.0) * (-basic_d[4]))  # MY
     if G * Avy > eps:
         sec_d[:, 2] = sec_force[:, 2] / (G * Avy)
     if G * Avz > eps:
@@ -406,6 +431,7 @@ def _get_elastic_sec_forces(ele_tag, length, ele_load_data, pattern_tags, load_e
     sec_locs = xlocs
     sec_x = sec_locs * length
     sec_f = np.full((len(xlocs), 6), 0.0)
+    local_force = [-1, -1, -1, -1, 1, -1, 1, 1, 1, 1, -1, 1] * np.array(local_force)  # Change the signs to original
     # N1, Mz1, Vy1, My1, Vz1, T1
     sec_f[:, 0] = -local_force[0]
     sec_f[:, 1] = -local_force[5] + local_force[1] * sec_x
