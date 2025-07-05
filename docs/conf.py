@@ -22,7 +22,7 @@ sys.path.append(str(this_dir))
 project = "opstool"
 copyright = "2025, Yexiang Yan"
 author = "Yexiang Yan"
-release = __version__
+version = release = __version__
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -86,7 +86,7 @@ html_theme_options = {
     "light_logo": "logo-light.png",  # add light mode logo
     "dark_logo": "logo-dark.png",  # add dark mode logo
     "sidebar_hide_name": True,  # hide the name of a project in the sidebar (already in logo)
-    "source_repository": "https://github.com/yexiang1992/opstool",
+    "source_repository": "https://github.com/yexiang92/opstool",
     "source_branch": "master",
     "source_directory": "docs/",
     "top_of_page_buttons": ["view", "edit"],
@@ -104,5 +104,8 @@ html_sidebars = {
         "sidebar/variant-selector.html",
     ]
 }
-pygments_style = "perldoc"
-pygments_dark_style = "paraiso-dark"
+html_context = {"repository": "yexiang92/opstool"}
+
+
+pygments_style = "tango"
+pygments_dark_style = "lightbulb"
