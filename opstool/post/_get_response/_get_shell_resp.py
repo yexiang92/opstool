@@ -5,7 +5,7 @@ import numpy as np
 import openseespy.opensees as ops
 import xarray as xr
 
-from ...utils import get_shell_gp2node_func
+from ...utils import get_shell_gp2node_func, suppress_ops_print
 from ._response_base import ResponseBase, _expand_to_uniform_array
 
 
@@ -253,10 +253,8 @@ def _get_shell_resp_one_step(ele_tags, dtype):
                     break
                 sec_stress.extend(stress)
                 sec_strain.extend(strain)
-        if len(sec_stress) == 0:
-            sec_stress.extend([np.nan, np.nan, np.nan, np.nan, np.nan] * num_sec)
-        if len(sec_strain) == 0:
-            sec_strain.extend([np.nan, np.nan, np.nan, np.nan, np.nan] * num_sec)
+        if len(sec_stress) == 0:  # elastic section response
+            sec_stress, sec_strain = _get_elastic_section_stress(etag, sec_forces[-1])
         sec_stress = np.reshape(sec_stress, (num_sec, -1, 5))
         sec_strain = np.reshape(sec_strain, (num_sec, -1, 5))
         stresses.append(_reorder_by_ele_type(etag, sec_stress))
@@ -311,3 +309,49 @@ def drop_all_nan_rows(arr: np.ndarray) -> np.ndarray:
     axis_to_check = tuple(range(1, arr.ndim))
     mask = ~np.isnan(arr).all(axis=axis_to_check)
     return arr[mask]
+
+
+def _get_elastic_section_stress(eletag, sec_forces):
+    with suppress_ops_print():
+        E = _get_param_value(eletag, "E")
+        nu = _get_param_value(eletag, "nu")
+        h = _get_param_value(eletag, "h")
+        # Ep_mod = _get_param_value(eletag, "Ep_mod")
+        # rho = _get_param_value(eletag, "rho")
+    if E > 0 and nu >= 0 and h > 0:
+        sigmas, epses = [], []
+        G = 0.5 * E / (1.0 + nu)
+        xs = np.linspace(-h / 2, h / 2, 5)
+        w = 12 / (h * h * h)
+        for f11, f22, f12, m11, m22, m12, v13, v23 in sec_forces:
+            sigma11 = f11 / h - w * m11 * xs
+            sigma22 = f22 / h - w * m22 * xs
+            sigma12 = f12 / h - w * m12 * xs
+            sigma13 = v13 / h + np.zeros_like(xs)
+            sigma23 = v23 / h + np.zeros_like(xs)
+            eps11 = sigma11 / E
+            eps22 = sigma22 / E
+            eps12 = sigma12 / G
+            eps13 = sigma13 / G
+            eps23 = sigma23 / G
+            sigma = np.array([sigma11, sigma22, sigma12, sigma23, sigma13]).T
+            eps = np.array([eps11, eps22, eps12, eps23, eps13]).T
+            sigmas.append(sigma)
+            epses.append(eps)
+        sigmas = np.array(sigmas)
+        epses = np.array(epses)
+    else:
+        sigmas = np.full((len(sec_forces), 1, 5), np.nan)
+        epses = np.full((len(sec_forces), 1, 5), np.nan)
+    return sigmas, epses
+
+
+def _get_param_value(eletag, param_name):
+    paramTag = 1
+    paramTags = ops.getParamTags()
+    if len(paramTags) > 0:
+        paramTag = max(paramTags) + 1
+    ops.parameter(paramTag, "element", eletag, param_name)
+    value = ops.getParamValue(paramTag)
+    ops.remove("parameter", paramTag)
+    return value
