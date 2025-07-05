@@ -85,7 +85,7 @@ class PlotResponseBase:
         else:
             da = self.ModelInfoSteps[key].isel(time=0)
         # tags = da.coords[dims[1]].values
-        return da
+        return da.copy()
 
     def _get_node_da(self, idx):
         return self._get_model_da("NodalData", idx)
@@ -104,7 +104,7 @@ class PlotResponseBase:
 
     def _get_resp_da(self, time_idx, resp_type, component=None):
         dims = self.RespSteps[resp_type].dims
-        da = self.RespSteps[resp_type].isel(time=time_idx)
+        da = self.RespSteps[resp_type].isel(time=time_idx).copy()
         if self.ModelUpdate:
             da = da.dropna(dim=dims[1], how="all")
         if da.ndim == 1 or component is None:
@@ -119,15 +119,16 @@ class PlotResponseBase:
         if self.nodal_resp_steps is None:
             data = self._get_resp_da(idx, "disp", ["UX", "UY", "UZ"])
         else:
-            data = self.nodal_resp_steps["disp"].isel(time=idx)
+            data = self.nodal_resp_steps["disp"].isel(time=idx).copy()
             if self.ModelUpdate:
                 data = data.dropna(dim="nodeTags", how="all")
-            data = data.loc[:, ["UX", "UY", "UZ"]]
+            data = data.sel(DOFs=["UX", "UY", "UZ"])
         return data / self.unit_factor  # come back to original unit
 
-    def _set_defo_scale_factor(self):
+    def _set_defo_scale_factor(self, alpha=1.0):
         if self.defo_scale_factor is not None:
             return
+
         defos, poss = [], []
         for i in range(self.num_steps):
             defo = self._get_disp_da(i)
@@ -135,13 +136,18 @@ class PlotResponseBase:
             pos.coords["time"] = defo.coords["time"]
             defos.append(defo)
             poss.append(pos)
-        if self.ModelUpdate:
-            scalars = [np.linalg.norm(resp, axis=-1) for resp in defos]
-            scalars = [np.max(scalar) for scalar in scalars]
+
+        if alpha and isinstance(alpha, (int, float)) and alpha != 1.0:
+            if self.ModelUpdate:
+                scalars = [np.linalg.norm(resp, axis=-1) for resp in defos]
+                scalars = [np.max(scalar) for scalar in scalars]
+            else:
+                scalars = np.linalg.norm(defos, axis=-1)
+            maxv = np.max(scalars)
+            alpha_ = 0.0 if maxv == 0 else self.max_bound_size * self.pargs.scale_factor / maxv
+            alpha_ = alpha_ * alpha
         else:
-            scalars = np.linalg.norm(defos, axis=-1)
-        maxv = np.max(scalars)
-        alpha_ = 0.0 if maxv == 0 else self.max_bound_size * self.pargs.scale_factor / maxv
+            alpha_ = 1.0
         self.defo_scale_factor = alpha_
 
         if self.ModelUpdate:
@@ -151,15 +157,15 @@ class PlotResponseBase:
             ]
         else:
             poss_da = xr.concat(poss, dim="time")
-            defo_coords = alpha_ * np.array(defos) + np.array(poss)
+            defo_coords = alpha_ * np.asarray(defos) + np.asarray(poss)
             defo_coords = xr.DataArray(defo_coords, dims=poss_da.dims, coords=poss_da.coords)
         self.defo_coords = defo_coords
 
     def _get_defo_coord_da(self, step, alpha):
-        if alpha == 0.0:
+        if alpha and alpha == 0.0:
             original_coords_da = self._get_node_da(step)
             return original_coords_da
-        self._set_defo_scale_factor()
+        self._set_defo_scale_factor(alpha=alpha)
         node_deform_coords = self.defo_coords[step] if self.ModelUpdate else self.defo_coords.isel(time=step)
         return node_deform_coords
 
