@@ -56,6 +56,16 @@ class SensitivityRespStepData(ResponseBase):
     def reset(self):
         self.initialize()
 
+    def purge_buffers(self):
+        """Clear cached steps without inserting an initial step."""
+        self.resp_steps = None
+        if self.model_update:
+            self.resp_steps_list = []
+        else:
+            for name in self.resp_names:
+                self.resp_steps_dict[name] = []
+        self.times = []
+
     def add_data_one_step(self, node_tags, sens_para_tags):
         if node_tags is None:
             node_tags = self.node_tags

@@ -68,6 +68,16 @@ class ShellRespStepData(ResponseBase):
     def reset(self):
         self.initialize()
 
+    def purge_buffers(self):
+        """Clear cached steps without inserting an initial step."""
+        self.resp_steps = None
+        if self.model_update:
+            self.resp_steps_list = []
+        else:
+            for name in self.resp_names:
+                self.resp_steps_dict[name] = []
+        self.times = []
+
     def add_data_one_step(self, ele_tags):
         sec_forces, sec_defos, stresses, strains = _get_shell_resp_one_step(ele_tags, dtype=self.dtype)
 
