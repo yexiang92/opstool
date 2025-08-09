@@ -1,6 +1,9 @@
 from types import SimpleNamespace
 from typing import Optional, TypedDict, Union
 
+import os
+import platform
+import ctypes
 import numpy as np
 import openseespy.opensees as ops
 import xarray as xr
@@ -24,6 +27,45 @@ from ._unit_postprocess import get_post_unit_multiplier, get_post_unit_symbol
 from .eigen_data import save_eigen_data
 from .model_data import save_model_data
 
+def _get_available_memory_bytes() -> int | None:
+    """Cross-platform available physical memory in bytes.
+
+    - On Windows, use GlobalMemoryStatusEx
+    - On POSIX, read /proc/meminfo when available
+    """
+    try:
+        if platform.system().lower().startswith("win"):
+            class MEMORYSTATUSEX(ctypes.Structure):
+                _fields_ = [
+                    ("dwLength", ctypes.c_ulong),
+                    ("dwMemoryLoad", ctypes.c_ulong),
+                    ("ullTotalPhys", ctypes.c_ulonglong),
+                    ("ullAvailPhys", ctypes.c_ulonglong),
+                    ("ullTotalPageFile", ctypes.c_ulonglong),
+                    ("ullAvailPageFile", ctypes.c_ulonglong),
+                    ("ullTotalVirtual", ctypes.c_ulonglong),
+                    ("ullAvailVirtual", ctypes.c_ulonglong),
+                    ("sullAvailExtendedVirtual", ctypes.c_ulonglong),
+                ]
+            stat = MEMORYSTATUSEX()
+            stat.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
+            if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(stat)):
+                return int(stat.ullAvailPhys)
+            return None
+        else:
+            # Try /proc/meminfo
+            try:
+                with open("/proc/meminfo", "r") as f:
+                    for line in f:
+                        if line.startswith("MemAvailable:"):
+                            parts = line.split()
+                            # value in kB
+                            return int(parts[1]) * 1024
+            except Exception:
+                pass
+            return None
+    except Exception:
+        return None
 
 class _POST_ARGS_TYPES(TypedDict):
     elastic_frame_sec_points: int
@@ -179,9 +221,16 @@ class CreateODB:
                 Otherwise, unexpected behavior may occur.
     """
 
-    def __init__(self, odb_tag: Union[int, str] = 1, model_update: bool = False, **kwargs: Unpack[_POST_ARGS_TYPES]):
+    def __init__(
+        self,
+        odb_tag: Union[int, str] = 1,
+        model_update: bool = False,
+        memory_guard_gb: Optional[float] = 2.0,
+        **kwargs: Unpack[_POST_ARGS_TYPES],
+    ):
         self._odb_tag = odb_tag
         self._model_update = model_update
+        self._mem_guard_gb = memory_guard_gb
 
         for key, value in kwargs.items():
             if key not in list(vars(_POST_ARGS).keys()):
@@ -200,6 +249,21 @@ class CreateODB:
         self._BrickResp = None
         self._ContactResp = None
         self._SensitivityResp = None
+
+        # for auto zarr save
+        self.auto_save_every: Optional[int] = None
+        self._step_counter: int = 0
+        self._last_saved_step: Optional[int] = None
+
+        # memory guard state
+        self._memory_guard_armed: bool = True
+        self._last_guard_trigger_step: int = -1
+        # re-arm threshold (GB) above guard to re-enable triggering; conservative default
+        self._memory_guard_rearm_gb: float = 1.0
+        # minimal step interval between two guard triggers
+        self._memory_guard_min_interval_steps: int = 50
+        self._last_saved_step: Optional[int] = None
+
 
         self._set_resp()
 
@@ -406,27 +470,89 @@ class CreateODB:
             if resp is not None:
                 resp.reset()
 
-    def fetch_response_step(self, print_info: bool = False):
+    def fetch_response_step(self, print_info: bool = False, auto_save_every: Optional[int] = None):
         """Extract response data for the current analysis step.
 
         Parameters
         ------------
         print_info: bool, optional
             print information, by default, False
+        auto_save_every: Optional[int], default None
+            if supply, call `save_response(to_zarr=True)` every N steps and clear memory.
         """
         CONSOLE = CONFIGS.get_console()
         PKG_PREFIX = CONFIGS.get_pkg_prefix()
 
         self._set_resp()
 
+        # step counter
+        self._step_counter += 1
+        if auto_save_every is not None and auto_save_every > 0:
+            self.auto_save_every = int(auto_save_every)
+        if (
+            self.auto_save_every
+            and self._step_counter % self.auto_save_every == 0
+            and self._last_saved_step != self._step_counter
+            and self._has_pending_buffers()
+        ):
+            # 增量保存到 Zarr 并释放内存（去重）
+            self.save_response(to_zarr=True)
+            self._last_saved_step = self._step_counter
+
+        # 内存警戒线：可用内存<=阈值时触发增量保存（去重）
+        if self._should_save_by_memory() and self._last_saved_step != self._step_counter:
+            self.save_response(to_zarr=True)
+            self._last_saved_step = self._step_counter
+
         if print_info:
             time = ops.getTime()
             color = get_random_color()
             CONSOLE.print(f"{PKG_PREFIX} The responses data at time [bold {color}]{time:.4f}[/] has been fetched!")
 
-    def save_response(self, zlib: bool = False):
+    def _has_pending_buffers(self) -> bool:
+        """Heuristically check if there is buffered in-memory response to flush."""
+        for resp in self._get_resp():
+            if resp is None:
+                continue
+            if hasattr(resp, "resp_steps_list") and getattr(resp, "resp_steps_list"):
+                return True
+            if hasattr(resp, "resp_steps_dict"):
+                for seq in getattr(resp, "resp_steps_dict").values():
+                    if len(seq) > 0:
+                        return True
+        return False
+
+    def _should_save_by_memory(self) -> bool:
+        try:
+            if self._mem_guard_gb is None or self._mem_guard_gb <= 0:
+                return False
+            avail = _get_available_memory_bytes()
+            if avail is None:
+                return False
+
+            # Re-arm logic (hysteresis)
+            if not self._memory_guard_armed:
+                if avail >= (self._mem_guard_gb + self._memory_guard_rearm_gb) * (1024 ** 3):
+                    self._memory_guard_armed = True
+                return False
+
+            # Only trigger when armed, below threshold, have pending buffers, and respect min step interval
+            below = avail <= self._mem_guard_gb * (1024 ** 3)
+            interval_ok = (
+                self._last_guard_trigger_step < 0
+                or (self._step_counter - self._last_guard_trigger_step) >= self._memory_guard_min_interval_steps
+            )
+            if below and interval_ok and self._has_pending_buffers():
+                self._memory_guard_armed = False
+                self._last_guard_trigger_step = self._step_counter
+                return True
+            return False
+        except Exception:
+            return False
+
+    def save_response(self, zlib: bool = False, to_zarr: bool = False):
         """
-        Save all response data to a file name ``RespStepData-{odb_tag}.nc``.
+        Save all response data.
 
         Parameters
         -----------
@@ -434,40 +560,153 @@ class CreateODB:
             If True, the data is saved compressed,
             which is useful when your result files are expected to be large,
             especially if model updating is turned on.
+        to_zarr: bool, optional, default: False
+            If True, save incrementally to a Zarr store
+            ``RespStepData-{odb_tag}.zarr`` with append along the "time" dim.
+            After saving, in-memory caches are reset to release most memory.
         """
         RESULTS_DIR = CONFIGS.get_output_dir()
         CONSOLE = CONFIGS.get_console()
         PKG_PREFIX = CONFIGS.get_pkg_prefix()
         RESP_FILE_NAME = CONFIGS.get_resp_filename()
 
-        filename = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{self._odb_tag}.nc"
-        with xr.DataTree(name=f"{RESP_FILE_NAME}") as dt:
-            for resp in self._get_resp():
-                if resp is not None:
+        if to_zarr:
+            zarr_path = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{self._odb_tag}.zarr"
+            first_write = not os.path.exists(zarr_path)
+
+            with xr.DataTree(name=f"{RESP_FILE_NAME}") as dt:
+                for resp in self._get_resp():
+                    if resp is None:
+                        continue
+                    # Skip ModelInfo after the first write when model_update=False, to avoid appending objects without a "time" dimension.
+                    if (not first_write) and isinstance(resp, ModelInfoStepData) and (not resp.is_model_update()):
+                        continue
                     resp.save_file(dt)
 
-            if zlib:
-                encoding = {}
-                for path, node in dt.items():
-                    if path == "ModelInfo":
-                        for key, _value in node.items():
-                            encoding[f"/{path}/{key}"] = {
-                                key: {"_FillValue": -9999, "zlib": True, "complevel": 5, "dtype": "float32"}
-                            }
-                    else:
-                        for key, _value in node.items():
-                            encoding[f"/{path}"] = {
-                                key: {"_FillValue": -9999, "zlib": True, "complevel": 5, "dtype": "float32"}
-                            }
-            else:
-                encoding = None
+                # Note: DataTree.to_zarr does not yet support append_dim. The entire tree can be written on the first write; for subsequent writes, switch to writing and appending at the group/Dataset level.
+                if first_write:
+                    # Before the first write, remove groups with a "time" dimension of length 0 to avoid creating empty datasets.
+                    # Top-level groups
+                    for g in [
+                        "NodalResponses",
+                        "FrameResponses",
+                        "TrussResponses",
+                        "LinkResponses",
+                        "ShellResponses",
+                        "PlaneResponses",
+                        "SolidResponses",
+                        "ContactResponses",
+                        "SensitivityResponses",
+                    ]:
+                        if g in dt:
+                            ds = dt[g]
+                            if hasattr(ds, "to_dataset"):
+                                ds = ds.to_dataset()
+                            if int(ds.sizes.get("time", 0)) == 0:
+                                try:
+                                    del dt[g]
+                                except Exception:
+                                    pass
+                    # ModelInfo subgroups
+                    if "ModelInfo" in dt:
+                        for key, ds in list(dt["ModelInfo"].items()):
+                            if hasattr(ds, "to_dataset"):
+                                ds = ds.to_dataset()
+                            if int(ds.sizes.get("time", 0)) == 0:
+                                try:
+                                    del dt[f"ModelInfo/{key}"]
+                                except Exception:
+                                    pass
 
-            dt.to_netcdf(filename, mode="w", engine="netcdf4", encoding=encoding)
+                    dt.to_zarr(zarr_path, mode="w", consolidated=False)
+                    color = get_random_color()
+                    CONSOLE.print(
+                        f"{PKG_PREFIX} Responses with _odb_tag = {self._odb_tag} saved in [bold {color}]{zarr_path}[/]!"
+                    )
+                else:
+                    # Write/append ModelInfo subgroups
+                    if "ModelInfo" in dt:
+                        model_info_tree = dt["ModelInfo"]
+                        for key, ds in model_info_tree.items():
+                            if hasattr(ds, "to_dataset"):
+                                ds = ds.to_dataset()
+                            group_path = f"ModelInfo/{key}"
+                            has_time = "time" in ds.dims
+                            if has_time and int(ds.sizes.get("time", 0)) > 0:
+                                ds.to_zarr(
+                                    zarr_path, group=group_path, mode="a", append_dim="time", consolidated=False
+                                )
+                            else:
+                                # Write only if it's not time-dimensional data (or has no "time" dimension); skip if the time dimension length is 0.
+                                if not has_time:
+                                    ds.to_zarr(zarr_path, group=group_path, mode="a", consolidated=False)
 
-        color = get_random_color()
-        CONSOLE.print(
-            f"{PKG_PREFIX} All responses data with _odb_tag = {self._odb_tag} saved in [bold {color}]{filename}[/]!"
-        )
+                    # Write/append other response groups (top-level)
+                    top_groups = [
+                        "NodalResponses",
+                        "FrameResponses",
+                        "TrussResponses",
+                        "LinkResponses",
+                        "ShellResponses",
+                        "PlaneResponses",
+                        "SolidResponses",
+                        "ContactResponses",
+                        "SensitivityResponses",
+                    ]
+                    for g in top_groups:
+                        if g in dt:
+                            ds = dt[g]
+                            if hasattr(ds, "to_dataset"):
+                                ds = ds.to_dataset()
+                            group_path = g.lstrip("/")
+                            has_time = "time" in ds.dims
+                            if has_time and int(ds.sizes.get("time", 0)) > 0:
+                                ds.to_zarr(
+                                    zarr_path, group=group_path, mode="a", append_dim="time", consolidated=False
+                                )
+                            else:
+                                if not has_time:
+                                    ds.to_zarr(zarr_path, group=group_path, mode="a", consolidated=False)
+                    color = get_random_color()
+                    CONSOLE.print(
+                        f"{PKG_PREFIX} Incremental saved responses at time {ops.getTime():.4f} to Zarr and cleared memory [bold {color}]OK[/]."
+                    )
+
+            # After writing, only clear the cache accumulated by add_data_one_step, without altering the initial state.
+            for resp in self._get_resp():
+                if resp is not None:
+                    if hasattr(resp, "purge_buffers"):
+                        resp.purge_buffers()
+        else:
+            filename = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{self._odb_tag}.nc"
+            with xr.DataTree(name=f"{RESP_FILE_NAME}") as dt:
+                for resp in self._get_resp():
+                    if resp is not None:
+                        resp.save_file(dt)
+
+                if zlib:
+                    encoding = {}
+                    for path, node in dt.items():
+                        if path == "ModelInfo":
+                            for key, _value in node.items():
+                                encoding[f"/{path}/{key}"] = {
+                                    key: {"_FillValue": -9999, "zlib": True, "complevel": 5, "dtype": "float32"}
+                                }
+                        else:
+                            for key, _value in node.items():
+                                encoding[f"/{path}"] = {
+                                    key: {"_FillValue": -9999, "zlib": True, "complevel": 5, "dtype": "float32"}
+                                }
+                else:
+                    encoding = None
+
+                dt.to_netcdf(filename, mode="w", engine="netcdf4", encoding=encoding)
+
+            color = get_random_color()
+            CONSOLE.print(
+                f"{PKG_PREFIX} All responses data with _odb_tag = {self._odb_tag} saved in [bold {color}]{filename}[/]!"
+            )
+
 
     def save_eigen_data(self, mode_tag: int = 1, solver: str = "-genBandArpack"):
         """Save modal analysis data.
@@ -498,8 +737,17 @@ def loadODB(obd_tag, resp_type: str = "Nodal", verbose: bool = True):
     PKG_PREFIX = CONFIGS.get_pkg_prefix()
     RESP_FILE_NAME = CONFIGS.get_resp_filename()
 
-    filename = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{obd_tag}.nc"
-    with xr.open_datatree(filename, engine="netcdf4").load() as dt:
+    # auto select store (prefer zarr)
+    zarr_path = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{obd_tag}.zarr"
+    nc_path = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{obd_tag}.nc"
+    if os.path.isdir(zarr_path):
+        filename = zarr_path
+        engine = "zarr"
+    else:
+        filename = nc_path
+        engine = "netcdf4"
+
+    with xr.open_datatree(filename, engine=engine).load() as dt:
         if verbose:
             color = get_random_color()
             CONSOLE.print(f"{PKG_PREFIX} Loading response data from [bold {color}]{filename}[/] ...")
@@ -579,8 +827,15 @@ def get_model_data(odb_tag: Optional[int] = None, data_type: str = "Nodal", from
     else:
         raise ValueError(f"Data type {data_type} not found.")  # noqa: TRY003
     if from_responses:
-        filename = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{odb_tag}.nc"
-        with xr.open_datatree(filename, engine="netcdf4").load() as dt:
+        zarr_path = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{odb_tag}.zarr"
+        nc_path = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{odb_tag}.nc"
+        if os.path.isdir(zarr_path):
+            filename = zarr_path
+            engine = "zarr"
+        else:
+            filename = nc_path
+            engine = "netcdf4"
+        with xr.open_datatree(filename, engine=engine).load() as dt:
             data = ModelInfoStepData.read_data(dt, data_type)
     else:
         filename = f"{RESULTS_DIR}/" + f"{MODEL_FILE_NAME}-{odb_tag}.nc"
@@ -649,8 +904,15 @@ def get_nodal_responses(
     PKG_PREFIX = CONFIGS.get_pkg_prefix()
     RESP_FILE_NAME = CONFIGS.get_resp_filename()
 
-    filename = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{odb_tag}.nc"
-    with xr.open_datatree(filename, engine="netcdf4").load() as dt:
+    zarr_path = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{odb_tag}.zarr"
+    nc_path = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{odb_tag}.nc"
+    if os.path.isdir(zarr_path):
+        filename = zarr_path
+        engine = "zarr"
+    else:
+        filename = nc_path
+        engine = "netcdf4"
+    with xr.open_datatree(filename, engine=engine).load() as dt:
         if print_info:
             color = get_random_color()
             if resp_type is None:
@@ -752,8 +1014,15 @@ def get_element_responses(
     PKG_PREFIX = CONFIGS.get_pkg_prefix()
     RESP_FILE_NAME = CONFIGS.get_resp_filename()
 
-    filename = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{odb_tag}.nc"
-    with xr.open_datatree(filename, engine="netcdf4").load() as dt:
+    zarr_path = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{odb_tag}.zarr"
+    nc_path = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{odb_tag}.nc"
+    if os.path.isdir(zarr_path):
+        filename = zarr_path
+        engine = "zarr"
+    else:
+        filename = nc_path
+        engine = "netcdf4"
+    with xr.open_datatree(filename, engine=engine).load() as dt:
         if print_info:
             color = get_random_color()
             if resp_type is None:
@@ -838,8 +1107,15 @@ def get_sensitivity_responses(
     PKG_PREFIX = CONFIGS.get_pkg_prefix()
     RESP_FILE_NAME = CONFIGS.get_resp_filename()
 
-    filename = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{odb_tag}.nc"
-    with xr.open_datatree(filename, engine="netcdf4").load() as dt:
+    zarr_path = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{odb_tag}.zarr"
+    nc_path = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{odb_tag}.nc"
+    if os.path.isdir(zarr_path):
+        filename = zarr_path
+        engine = "zarr"
+    else:
+        filename = nc_path
+        engine = "netcdf4"
+    with xr.open_datatree(filename, engine=engine).load() as dt:
         if print_info:
             color = get_random_color()
             if resp_type is None:

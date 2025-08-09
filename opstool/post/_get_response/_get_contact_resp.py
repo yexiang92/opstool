@@ -46,6 +46,16 @@ class ContactRespStepData(ResponseBase):
     def reset(self):
         self.initialize()
 
+    def purge_buffers(self):
+        """Clear cached steps without inserting an initial step."""
+        self.resp_steps = None
+        if self.model_update:
+            self.resp_steps_list = []
+        else:
+            for name in self.resp_names:
+                self.resp_steps_dict[name] = []
+        self.times = []
+
     def add_data_one_step(self, ele_tags):
         with suppress_ops_print():
             global_forces, forces, defos, slips = _get_contact_resp(ele_tags, dtype=self.dtype)

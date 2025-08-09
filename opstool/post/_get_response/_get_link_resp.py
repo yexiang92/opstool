@@ -45,6 +45,16 @@ class LinkRespStepData(ResponseBase):
     def reset(self):
         self.initialize()
 
+    def purge_buffers(self):
+        """Clear cached steps without inserting an initial step."""
+        self.resp_steps = None
+        if self.model_update:
+            self.resp_steps_list = []
+        else:
+            for name in self.resp_names:
+                self.resp_steps_dict[name] = []
+        self.times = []
+
     def add_data_one_step(self, ele_tags):
         data = _get_link_resp(ele_tags, dtype=self.dtype)
 

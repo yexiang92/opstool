@@ -76,6 +76,16 @@ class FrameRespStepData(ResponseBase):
 
     def reset(self):
         self.initialize()
+    
+    def purge_buffers(self):
+        """Clear cached steps without inserting an initial step."""
+        self.resp_steps = None
+        if self.model_update:
+            self.resp_steps_list = []
+        else:
+            for name in self.resp_names:
+                self.resp_steps_dict[name] = []
+        self.times = []
 
     def add_data_one_step(self, ele_tags, ele_load_data):
         local_forces = _get_beam_local_force(ele_tags, ("localForces", "localForce"), dtype=self.dtype)
