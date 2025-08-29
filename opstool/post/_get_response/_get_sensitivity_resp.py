@@ -122,20 +122,20 @@ class SensitivityRespStepData(ResponseBase):
                 attrs=self.attrs,
             )
 
-    def save_file(self, dt: xr.DataTree):
+    def add_to_datatree(self, dt: xr.DataTree):
         self._to_xarray()
         dt["/SensitivityResponses"] = self.resp_steps
         return dt
 
     @staticmethod
-    def read_file(dt: xr.DataTree):
+    def read_datatree(dt: xr.DataTree):
         # (eleTag, steps, resp_type)
         resp_steps = dt["/SensitivityResponses"].to_dataset()
         return resp_steps
 
     @staticmethod
     def read_response(dt: xr.DataTree, resp_type: str = None):
-        ds = SensitivityRespStepData.read_file(dt)
+        ds = SensitivityRespStepData.read_datatree(dt)
         if resp_type is None:
             return ds
         else:

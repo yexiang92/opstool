@@ -444,7 +444,7 @@ class CreateODB:
         with xr.DataTree(name=f"{RESP_FILE_NAME}") as dt:
             for resp in self._get_resp():
                 if resp is not None:
-                    resp.save_file(dt)
+                    resp.add_to_datatree(dt)
 
             if zlib:
                 encoding = {}
@@ -503,27 +503,27 @@ def loadODB(obd_tag, resp_type: str = "Nodal", verbose: bool = True):
         if verbose:
             color = get_random_color()
             CONSOLE.print(f"{PKG_PREFIX} Loading response data from [bold {color}]{filename}[/] ...")
-        model_info_steps, model_update = ModelInfoStepData.read_file(dt, unit_factors=_POST_ARGS.unit_factors)
+        model_info_steps, model_update = ModelInfoStepData.read_datatree(dt, unit_factors=_POST_ARGS.unit_factors)
         if resp_type.lower() == "nodal":
-            resp_step = NodalRespStepData.read_file(dt, unit_factors=_POST_ARGS.unit_factors)
+            resp_step = NodalRespStepData.read_datatree(dt, unit_factors=_POST_ARGS.unit_factors)
         elif resp_type.lower() == "frame":
-            resp_step = FrameRespStepData.read_file(dt, unit_factors=_POST_ARGS.unit_factors)
+            resp_step = FrameRespStepData.read_datatree(dt, unit_factors=_POST_ARGS.unit_factors)
         elif resp_type.lower() == "fibersec":
-            resp_step = FiberSecRespStepData.read_file(dt, unit_factors=_POST_ARGS.unit_factors)
+            resp_step = FiberSecRespStepData.read_datatree(dt, unit_factors=_POST_ARGS.unit_factors)
         elif resp_type.lower() == "truss":
-            resp_step = TrussRespStepData.read_file(dt, unit_factors=_POST_ARGS.unit_factors)
+            resp_step = TrussRespStepData.read_datatree(dt, unit_factors=_POST_ARGS.unit_factors)
         elif resp_type.lower() == "link":
-            resp_step = LinkRespStepData.read_file(dt, unit_factors=_POST_ARGS.unit_factors)
+            resp_step = LinkRespStepData.read_datatree(dt, unit_factors=_POST_ARGS.unit_factors)
         elif resp_type.lower() == "shell":
-            resp_step = ShellRespStepData.read_file(dt, unit_factors=_POST_ARGS.unit_factors)
+            resp_step = ShellRespStepData.read_datatree(dt, unit_factors=_POST_ARGS.unit_factors)
         elif resp_type.lower() == "plane":
-            resp_step = PlaneRespStepData.read_file(dt, unit_factors=_POST_ARGS.unit_factors)
+            resp_step = PlaneRespStepData.read_datatree(dt, unit_factors=_POST_ARGS.unit_factors)
         elif resp_type.lower() in ["brick", "solid"]:
-            resp_step = BrickRespStepData.read_file(dt, unit_factors=_POST_ARGS.unit_factors)
+            resp_step = BrickRespStepData.read_datatree(dt, unit_factors=_POST_ARGS.unit_factors)
         elif resp_type.lower() == "contact":
-            resp_step = ContactRespStepData.read_file(dt, unit_factors=_POST_ARGS.unit_factors)
+            resp_step = ContactRespStepData.read_datatree(dt, unit_factors=_POST_ARGS.unit_factors)
         elif resp_type.lower() == "sensitivity":
-            resp_step = SensitivityRespStepData.read_file(dt)
+            resp_step = SensitivityRespStepData.read_datatree(dt)
         else:
             raise ValueError(f"Unsupported response type {resp_type}!")  # noqa: TRY003
 

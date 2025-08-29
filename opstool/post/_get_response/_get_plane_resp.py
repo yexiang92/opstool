@@ -218,7 +218,7 @@ class PlaneRespStepData(ResponseBase):
     def get_track(self):
         return self.step_track
 
-    def save_file(self, dt: xr.DataTree):
+    def add_to_datatree(self, dt: xr.DataTree):
         self._to_xarray()
         dt["/PlaneResponses"] = self.resp_steps
         return dt
@@ -238,7 +238,7 @@ class PlaneRespStepData(ResponseBase):
         return resp_steps
 
     @staticmethod
-    def read_file(dt: xr.DataTree, unit_factors: Optional[dict] = None):
+    def read_datatree(dt: xr.DataTree, unit_factors: Optional[dict] = None):
         resp_steps = dt["/PlaneResponses"].to_dataset()
         if unit_factors:
             resp_steps = PlaneRespStepData._unit_transform(resp_steps, unit_factors)
@@ -248,7 +248,7 @@ class PlaneRespStepData(ResponseBase):
     def read_response(
         dt: xr.DataTree, resp_type: Optional[str] = None, ele_tags=None, unit_factors: Optional[dict] = None
     ):
-        ds = PlaneRespStepData.read_file(dt, unit_factors=unit_factors)
+        ds = PlaneRespStepData.read_datatree(dt, unit_factors=unit_factors)
         if resp_type is None:
             if ele_tags is None:
                 return ds

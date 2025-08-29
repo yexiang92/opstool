@@ -106,13 +106,13 @@ class NodalRespStepData(ResponseBase):
                 attrs=self.attrs,
             )
 
-    def save_file(self, dt: xr.DataTree):
+    def add_to_datatree(self, dt: xr.DataTree):
         self._to_xarray()
         dt["/NodalResponses"] = self.resp_steps
         return dt
 
     @staticmethod
-    def read_file(dt: xr.DataTree, unit_factors: Optional[dict] = None):
+    def read_datatree(dt: xr.DataTree, unit_factors: Optional[dict] = None):
         # (eleTag, steps, resp_type)
         resp_steps = dt["/NodalResponses"].to_dataset()
         if unit_factors is not None:
@@ -150,7 +150,7 @@ class NodalRespStepData(ResponseBase):
     def read_response(
         dt: xr.DataTree, resp_type: Optional[str] = None, node_tags=None, unit_factors: Optional[dict] = None
     ):
-        ds = NodalRespStepData.read_file(dt, unit_factors=unit_factors)
+        ds = NodalRespStepData.read_datatree(dt, unit_factors=unit_factors)
         if resp_type is None:
             if node_tags is None:
                 return ds

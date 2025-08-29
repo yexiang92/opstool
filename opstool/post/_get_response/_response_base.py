@@ -25,12 +25,12 @@ class ResponseBase(ABC):
         """Get track tag."""
 
     @abstractmethod
-    def save_file(self, *args):
-        """Save responses data."""
+    def add_to_datatree(self, *args):
+        """To xarray DataTree."""
 
     @abstractmethod
-    def read_file(self, *args):
-        """Read response data from a file."""
+    def read_datatree(self, *args):
+        """Read response data from a xarray DataTree."""
 
 
 def _expand_to_uniform_array(array_list, dtype=None):

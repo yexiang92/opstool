@@ -113,7 +113,7 @@ class ModelInfoStepData(ResponseBase):
     def get_track(self):
         return self.step_track
 
-    def save_file(self, dt: xr.DataTree):
+    def add_to_datatree(self, dt: xr.DataTree):
         self._to_xarray()
         model_info_steps = self.model_info_steps
         for data in model_info_steps.values():
@@ -121,7 +121,7 @@ class ModelInfoStepData(ResponseBase):
         return dt
 
     @staticmethod
-    def read_file(dt: xr.DataTree, unit_factors: Optional[dict] = None):
+    def read_datatree(dt: xr.DataTree, unit_factors: Optional[dict] = None):
         model_info = {}
         for key, value in dt["ModelInfo"].items():
             model_info[key] = value[key]
