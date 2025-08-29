@@ -16,7 +16,6 @@
    .. autosummary::
       :nosignatures:
    
-      ~UnitSystem.get_unit_ratio
       ~UnitSystem.print
    
    
