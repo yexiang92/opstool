@@ -318,7 +318,7 @@ class SmartAnalyze:
         if ON_NOTEBOOK:
             self.logo = "OPSTOOL::SmartAnalyze::"
         else:
-            self.logo = "[bold magenta]OPSTOOL::SmartAnalyze::[/bold magenta]"
+            self.logo = "OPSTOOL::SmartAnalyze:"
         self.logo_progress = "[bold magenta]OPSTOOL::SmartAnalyze"
         self.logo_analysis_type = f"[bold cerulean]{self.analysis_type}"
 
