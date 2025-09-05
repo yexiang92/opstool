@@ -316,13 +316,12 @@ class SmartAnalyze:
         self.analysis_type = analysis_type
         self.eps = 1.0e-12
         
-        self.logo_base = "OPSTOOL::SmartAnalyze::"
         if ON_NOTEBOOK:
-            self.logo = self.logo_base
+            self.logo = "OPSTOOL::SmartAnalyze::"
         else:
-            self.logo = f"[bold magenta]{self.logo_base}[/bold magenta]"
+            self.logo = f"[bold magenta]OPSTOOL::SmartAnalyze::[/bold magenta]"
         
-        self.logo_progress = "[bold magenta]OPSTOOL::SmartAnalyze"
+        self.logo_progress = "\033[95mOPSTOOL::SmartAnalyze\033[0m"
         self.logo_analysis_type = f"[bold cerulean]{self.analysis_type}"
 
         self.debug_mode = self.control_args["debugMode"]
@@ -351,12 +350,9 @@ class SmartAnalyze:
         self.progress = None
 
     def _set_progress_bar(self, npts):
-        MAGENTA = '\033[95m'
-        RESET = '\033[0m'
-        colored_desc = f"🚀 {MAGENTA}{self.logo_base}{RESET}"
         self.progress = tqdm(
             total=npts,
-            desc=colored_desc,
+            desc=self.logo_progress,
             colour="#5170d7",
             unit=" step",
         )
