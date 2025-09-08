@@ -278,10 +278,15 @@ class UnitSystem:
     #     base = getattr(self, s)
     #     return base**v
 
+    def _get_cache(self):
+        """安全地获取缓存字典，避免递归调用"""
+        return object.__getattribute__(self, '_cache')
+
     def __getattr__(self, expr: str):
+        cache = self._get_cache()
         expr = expr.strip()
-        if expr in self._cache:
-            return self._cache[expr]
+        if expr in cache:
+            return cache[expr]
         # Uniformly convert to lowercase (preserve the numeric part)
         base_name = "".join([c for c in expr if not c.isdigit()]).lower()
         valid_units = (
