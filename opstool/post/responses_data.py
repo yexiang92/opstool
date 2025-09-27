@@ -516,33 +516,34 @@ def loadODB(obd_tag, resp_type: str = "Nodal", verbose: bool = True):
     RESP_FILE_NAME = CONFIGS.get_resp_filename()
 
     filename = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{obd_tag}.nc"
-    with xr.open_datatree(filename, engine="netcdf4").load() as dt:
-        if verbose:
-            color = get_random_color()
-            CONSOLE.print(f"{PKG_PREFIX} Loading response data from [bold {color}]{filename}[/] ...")
-        model_info_steps, model_update = ModelInfoStepData.read_datatree(dt, unit_factors=_POST_ARGS.unit_factors)
-        if resp_type.lower() == "nodal":
-            resp_step = NodalRespStepData.read_datatree(dt, unit_factors=_POST_ARGS.unit_factors)
-        elif resp_type.lower() == "frame":
-            resp_step = FrameRespStepData.read_datatree(dt, unit_factors=_POST_ARGS.unit_factors)
-        elif resp_type.lower() == "fibersec":
-            resp_step = FiberSecRespStepData.read_datatree(dt, unit_factors=_POST_ARGS.unit_factors)
-        elif resp_type.lower() == "truss":
-            resp_step = TrussRespStepData.read_datatree(dt, unit_factors=_POST_ARGS.unit_factors)
-        elif resp_type.lower() == "link":
-            resp_step = LinkRespStepData.read_datatree(dt, unit_factors=_POST_ARGS.unit_factors)
-        elif resp_type.lower() == "shell":
-            resp_step = ShellRespStepData.read_datatree(dt, unit_factors=_POST_ARGS.unit_factors)
-        elif resp_type.lower() == "plane":
-            resp_step = PlaneRespStepData.read_datatree(dt, unit_factors=_POST_ARGS.unit_factors)
-        elif resp_type.lower() in ["brick", "solid"]:
-            resp_step = BrickRespStepData.read_datatree(dt, unit_factors=_POST_ARGS.unit_factors)
-        elif resp_type.lower() == "contact":
-            resp_step = ContactRespStepData.read_datatree(dt, unit_factors=_POST_ARGS.unit_factors)
-        elif resp_type.lower() == "sensitivity":
-            resp_step = SensitivityRespStepData.read_datatree(dt)
-        else:
-            raise ValueError(f"Unsupported response type {resp_type}!")  # noqa: TRY003
+    dt = xr.open_datatree(filename, engine="netcdf4")
+    if verbose:
+        color = get_random_color()
+        CONSOLE.print(f"{PKG_PREFIX} Loading response data from [bold {color}]{filename}[/] ...")
+    model_info_steps, model_update = ModelInfoStepData.read_datatree(dt, unit_factors=_POST_ARGS.unit_factors)
+    if resp_type.lower() == "nodal":
+        resp_step = NodalRespStepData.read_datatree(dt, unit_factors=_POST_ARGS.unit_factors).load()
+    elif resp_type.lower() == "frame":
+        resp_step = FrameRespStepData.read_datatree(dt, unit_factors=_POST_ARGS.unit_factors).load()
+    elif resp_type.lower() == "fibersec":
+        resp_step = FiberSecRespStepData.read_datatree(dt, unit_factors=_POST_ARGS.unit_factors).load()
+    elif resp_type.lower() == "truss":
+        resp_step = TrussRespStepData.read_datatree(dt, unit_factors=_POST_ARGS.unit_factors).load()
+    elif resp_type.lower() == "link":
+        resp_step = LinkRespStepData.read_datatree(dt, unit_factors=_POST_ARGS.unit_factors).load()
+    elif resp_type.lower() == "shell":
+        resp_step = ShellRespStepData.read_datatree(dt, unit_factors=_POST_ARGS.unit_factors).load()
+    elif resp_type.lower() == "plane":
+        resp_step = PlaneRespStepData.read_datatree(dt, unit_factors=_POST_ARGS.unit_factors).load()
+    elif resp_type.lower() in ["brick", "solid"]:
+        resp_step = BrickRespStepData.read_datatree(dt, unit_factors=_POST_ARGS.unit_factors).load()
+    elif resp_type.lower() == "contact":
+        resp_step = ContactRespStepData.read_datatree(dt, unit_factors=_POST_ARGS.unit_factors).load()
+    elif resp_type.lower() == "sensitivity":
+        resp_step = SensitivityRespStepData.read_datatree(dt).load()
+    else:
+        raise ValueError(f"Unsupported response type {resp_type}!")  # noqa: TRY003
+    dt.close()
 
     return model_info_steps, model_update, resp_step
 
@@ -667,17 +668,18 @@ def get_nodal_responses(
     RESP_FILE_NAME = CONFIGS.get_resp_filename()
 
     filename = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{odb_tag}.nc"
-    with xr.open_datatree(filename, engine="netcdf4").load() as dt:
-        if print_info:
-            color = get_random_color()
-            if resp_type is None:
-                CONSOLE.print(f"{PKG_PREFIX} Loading all response data from [bold {color}]{filename}[/] ...")
-            else:
-                CONSOLE.print(f"{PKG_PREFIX} Loading {resp_type} response data from [bold {color}]{filename}[/] ...")
+    dt = xr.open_datatree(filename, engine="netcdf4")
+    if print_info:
+        color = get_random_color()
+        if resp_type is None:
+            CONSOLE.print(f"{PKG_PREFIX} Loading all response data from [bold {color}]{filename}[/] ...")
+        else:
+            CONSOLE.print(f"{PKG_PREFIX} Loading {resp_type} response data from [bold {color}]{filename}[/] ...")
 
-        nodal_resp = NodalRespStepData.read_response(
-            dt, resp_type=resp_type, node_tags=node_tags, unit_factors=_POST_ARGS.unit_factors
-        )
+    nodal_resp = NodalRespStepData.read_response(
+        dt, resp_type=resp_type, node_tags=node_tags, unit_factors=_POST_ARGS.unit_factors
+    ).load()
+    dt.close()
     return nodal_resp
 
 
@@ -770,53 +772,53 @@ def get_element_responses(
     RESP_FILE_NAME = CONFIGS.get_resp_filename()
 
     filename = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{odb_tag}.nc"
-    with xr.open_datatree(filename, engine="netcdf4").load() as dt:
-        if print_info:
-            color = get_random_color()
-            if resp_type is None:
-                CONSOLE.print(f"{PKG_PREFIX} Loading {ele_type} response data from [bold {color}]{filename}[/] ...")
-            else:
-                CONSOLE.print(
-                    f"{PKG_PREFIX} Loading {ele_type} {resp_type} response data from [bold {color}]{filename}[/] ..."
-                )
-
-        if ele_type.lower() == "frame":
-            ele_resp = FrameRespStepData.read_response(
-                dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=_POST_ARGS.unit_factors
-            )
-        elif ele_type.lower() == "fibersection":
-            ele_resp = FiberSecRespStepData.read_response(
-                dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=_POST_ARGS.unit_factors
-            )
-        elif ele_type.lower() == "truss":
-            ele_resp = TrussRespStepData.read_response(
-                dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=_POST_ARGS.unit_factors
-            )
-        elif ele_type.lower() == "link":
-            ele_resp = LinkRespStepData.read_response(
-                dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=_POST_ARGS.unit_factors
-            )
-        elif ele_type.lower() == "shell":
-            ele_resp = ShellRespStepData.read_response(
-                dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=_POST_ARGS.unit_factors
-            )
-        elif ele_type.lower() == "plane":
-            ele_resp = PlaneRespStepData.read_response(
-                dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=_POST_ARGS.unit_factors
-            )
-        elif ele_type.lower() in ["brick", "solid"]:
-            ele_resp = BrickRespStepData.read_response(
-                dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=_POST_ARGS.unit_factors
-            )
-        elif ele_type.lower() == "contact":
-            ele_resp = ContactRespStepData.read_response(
-                dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=_POST_ARGS.unit_factors
-            )
+    dt = xr.open_datatree(filename, engine="netcdf4")
+    if print_info:
+        color = get_random_color()
+        if resp_type is None:
+            CONSOLE.print(f"{PKG_PREFIX} Loading {ele_type} response data from [bold {color}]{filename}[/] ...")
         else:
-            raise ValueError(  # noqa: TRY003
-                f"Unsupported element type {ele_type}, must in [Frame, Truss, Link, Shell, Plane, Solid, Contact]!"
+            CONSOLE.print(
+                f"{PKG_PREFIX} Loading {ele_type} {resp_type} response data from [bold {color}]{filename}[/] ..."
             )
 
+    if ele_type.lower() == "frame":
+        ele_resp = FrameRespStepData.read_response(
+            dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=_POST_ARGS.unit_factors
+        ).load()
+    elif ele_type.lower() == "fibersection":
+        ele_resp = FiberSecRespStepData.read_response(
+            dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=_POST_ARGS.unit_factors
+        ).load()
+    elif ele_type.lower() == "truss":
+        ele_resp = TrussRespStepData.read_response(
+            dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=_POST_ARGS.unit_factors
+        ).load()
+    elif ele_type.lower() == "link":
+        ele_resp = LinkRespStepData.read_response(
+            dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=_POST_ARGS.unit_factors
+        ).load()
+    elif ele_type.lower() == "shell":
+        ele_resp = ShellRespStepData.read_response(
+            dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=_POST_ARGS.unit_factors
+        ).load()
+    elif ele_type.lower() == "plane":
+        ele_resp = PlaneRespStepData.read_response(
+            dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=_POST_ARGS.unit_factors
+        ).load()
+    elif ele_type.lower() in ["brick", "solid"]:
+        ele_resp = BrickRespStepData.read_response(
+            dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=_POST_ARGS.unit_factors
+        ).load()
+    elif ele_type.lower() == "contact":
+        ele_resp = ContactRespStepData.read_response(
+            dt, resp_type=resp_type, ele_tags=ele_tags, unit_factors=_POST_ARGS.unit_factors
+        ).load()
+    else:
+        raise ValueError(  # noqa: TRY003
+            f"Unsupported element type {ele_type}, must in [Frame, Truss, Link, Shell, Plane, Solid, Contact]!"
+        )
+    dt.close()
     return ele_resp
 
 
@@ -856,15 +858,16 @@ def get_sensitivity_responses(
     RESP_FILE_NAME = CONFIGS.get_resp_filename()
 
     filename = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{odb_tag}.nc"
-    with xr.open_datatree(filename, engine="netcdf4").load() as dt:
-        if print_info:
-            color = get_random_color()
-            if resp_type is None:
-                CONSOLE.print(f"{PKG_PREFIX} Loading response data from [bold {color}]{filename}[/] ...")
-            else:
-                CONSOLE.print(f"{PKG_PREFIX} Loading {resp_type} response data from [bold {color}]{filename}[/] ...")
+    dt = xr.open_datatree(filename, engine="netcdf4")
+    if print_info:
+        color = get_random_color()
+        if resp_type is None:
+            CONSOLE.print(f"{PKG_PREFIX} Loading response data from [bold {color}]{filename}[/] ...")
+        else:
+            CONSOLE.print(f"{PKG_PREFIX} Loading {resp_type} response data from [bold {color}]{filename}[/] ...")
 
-        resp = SensitivityRespStepData.read_response(dt, resp_type=resp_type)
+    resp = SensitivityRespStepData.read_response(dt, resp_type=resp_type).load()
+    dt.close()
 
     return resp
 

@@ -124,7 +124,7 @@ class ModelInfoStepData(ResponseBase):
     def read_datatree(dt: xr.DataTree, unit_factors: Optional[dict] = None):
         model_info = {}
         for key, value in dt["ModelInfo"].items():
-            model_info[key] = value[key]
+            model_info[key] = value[key].load()
         model_update = int(model_info["ModelUpdate"])
         model_update = model_update == 1
 
