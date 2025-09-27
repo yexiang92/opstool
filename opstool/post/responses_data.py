@@ -441,7 +441,29 @@ class CreateODB:
         RESP_FILE_NAME = CONFIGS.get_resp_filename()
 
         filename = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{self._odb_tag}.nc"
-        with xr.DataTree(name=f"{RESP_FILE_NAME}") as dt:
+        self._save_response_nc(filename, zlib=zlib)
+
+        # filename = f"{RESULTS_DIR}/" + f"{RESP_FILE_NAME}-{self._odb_tag}.zarr"
+        # self._save_response_zarr(filename)
+
+        color = get_random_color()
+        CONSOLE.print(
+            f"{PKG_PREFIX} All responses data with _odb_tag = {self._odb_tag} saved in [bold {color}]{filename}[/]!"
+        )
+
+    def _save_response_zarr(self, filename):
+        """Save response data to a Zarr file."""
+        RESP_FILE_NAME = CONFIGS.get_resp_filename()
+        with xr.DataTree(name=f"{RESP_FILE_NAME}-{self._odb_tag}") as dt:
+            for resp in self._get_resp():
+                if resp is not None:
+                    resp.add_to_datatree(dt)
+            dt.to_zarr(filename, mode="w", consolidated=False, zarr_format=2)
+
+    def _save_response_nc(self, filename, zlib=False):
+        """Save response data to a NetCDF file."""
+        RESP_FILE_NAME = CONFIGS.get_resp_filename()
+        with xr.DataTree(name=f"{RESP_FILE_NAME}-{self._odb_tag}") as dt:
             for resp in self._get_resp():
                 if resp is not None:
                     resp.add_to_datatree(dt)
@@ -463,11 +485,6 @@ class CreateODB:
                 encoding = None
 
             dt.to_netcdf(filename, mode="w", engine="netcdf4", encoding=encoding)
-
-        color = get_random_color()
-        CONSOLE.print(
-            f"{PKG_PREFIX} All responses data with _odb_tag = {self._odb_tag} saved in [bold {color}]{filename}[/]!"
-        )
 
     def save_eigen_data(self, mode_tag: int = 1, solver: str = "-genBandArpack"):
         """Save modal analysis data.
