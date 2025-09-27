@@ -352,7 +352,7 @@ class SmartAnalyze:
     def _set_progress_bar(self, npts):
         self.progress = tqdm(
             total=npts,
-            desc=self.logo_progress,
+            desc=f"🚀 {self.logo_progress}",
             colour="#5170d7",
             unit=" step",
         )

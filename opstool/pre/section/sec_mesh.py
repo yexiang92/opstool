@@ -1799,7 +1799,7 @@ class FiberSecMesh:
                 rebar_colors.append(color)
                 ax.plot([], [], "o", label=name, color=color)
 
-        ax.set_aspect(aspect_ratio)
+        ax.set_aspect(aspect_ratio, adjustable='datalim')
         ax.set_title(self.sec_name, fontsize=16)
         if show_legend:
             ax.legend(
