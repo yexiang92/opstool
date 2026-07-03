@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 import shutil
 import time
 import warnings
@@ -298,7 +299,7 @@ class CreateODB:
         self._model_update = model_update
         self._odb_format = CONFIGS.get_odb_format()[0]
         self._flush_every = save_every
-        self._store_path = f"{RESULTS_DIR}\\" + f"{RESP_FILE_NAME}-{self._odb_tag}.odb"
+        self._store_path = str(Path(RESULTS_DIR) / f"{RESP_FILE_NAME}-{self._odb_tag}.odb")
         self._pending_steps = 0
         self._file_idx = 1
         self._zlib = zlib
@@ -359,7 +360,6 @@ class CreateODB:
         return self._RESPS
 
     def _init_path(self):
-        from pathlib import Path
 
         path = Path(self._store_path)
 
@@ -754,7 +754,6 @@ def _load_parts_as_datatree(path) -> list[xr.DataTree]:
       - Returns a list with 1 or more elements.
     """
     import re
-    from pathlib import Path
 
     folder = Path(path)
     pat = re.compile(r"^part_(\d+)(?:\.nc|\.zarr)?$")
@@ -813,7 +812,7 @@ def loadODB(
     PKG_PREFIX = CONFIGS.get_pkg_prefix()
     RESP_FILE_NAME = CONFIGS.get_resp_filename()
 
-    store_path = f"{RESULTS_DIR}\\" + f"{RESP_FILE_NAME}-{odb_tag}.odb"
+    store_path = str(Path(RESULTS_DIR) / f"{RESP_FILE_NAME}-{odb_tag}.odb")
     dts = _load_parts_as_datatree(store_path)
     if verbose:
         color = get_random_color()
@@ -926,13 +925,13 @@ def get_model_data(
             raise ValueError(f"Data type {data_type} not found.")  # noqa: TRY003
 
     if from_responses:
-        filename = f"{RESULTS_DIR}\\" + f"{RESP_FILE_NAME}-{odb_tag}.odb"
+        filename = str(Path(RESULTS_DIR) / f"{RESP_FILE_NAME}-{odb_tag}.odb")
         dts = _load_parts_as_datatree(filename)
         data = ModelInfoStepData.read_data(dts, data_type, lazy=lazy_load)
     else:
         suffix, engine = CONFIGS.get_odb_format()
         kargs = {"consolidated": False} if suffix == "zarr" else {}
-        filename = f"{RESULTS_DIR}\\" + f"{MODEL_FILE_NAME}-{odb_tag}.{suffix}"
+        filename = str(Path(RESULTS_DIR) / f"{MODEL_FILE_NAME}-{odb_tag}.{suffix}")
         with xr.open_datatree(filename, engine=engine, **kargs).load() as dt:
             if data_type not in dt["ModelInfo"]:
                 raise ValueError(f"Data type {data_type} not found in model data.")  # noqa: TRY003
@@ -1013,7 +1012,7 @@ def get_nodal_responses(
     PKG_PREFIX = CONFIGS.get_pkg_prefix()
     RESP_FILE_NAME = CONFIGS.get_resp_filename()
 
-    store_path = f"{RESULTS_DIR}\\" + f"{RESP_FILE_NAME}-{odb_tag}.odb"
+    store_path = str(Path(RESULTS_DIR) / f"{RESP_FILE_NAME}-{odb_tag}.odb")
     dts = _load_parts_as_datatree(store_path)
 
     nodal_resp = NodalRespStepData.read_response(
@@ -1127,7 +1126,7 @@ def get_element_responses(
     PKG_PREFIX = CONFIGS.get_pkg_prefix()
     RESP_FILE_NAME = CONFIGS.get_resp_filename()
 
-    store_path = f"{RESULTS_DIR}\\" + f"{RESP_FILE_NAME}-{odb_tag}.odb"
+    store_path = str(Path(RESULTS_DIR) / f"{RESP_FILE_NAME}-{odb_tag}.odb")
     dts = _load_parts_as_datatree(store_path)
 
     ele_type_l = ele_type.lower()
@@ -1196,7 +1195,7 @@ def get_sensitivity_responses(
     PKG_PREFIX = CONFIGS.get_pkg_prefix()
     RESP_FILE_NAME = CONFIGS.get_resp_filename()
 
-    store_path = f"{RESULTS_DIR}\\" + f"{RESP_FILE_NAME}-{odb_tag}.odb"
+    store_path = str(Path(RESULTS_DIR) / f"{RESP_FILE_NAME}-{odb_tag}.odb")
     dts = _load_parts_as_datatree(store_path)
 
     resp = SensitivityRespStepData.read_response(dts, resp_type=resp_type, lazy=lazy_load)

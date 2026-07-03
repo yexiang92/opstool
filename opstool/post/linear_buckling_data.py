@@ -1,5 +1,5 @@
 from typing import Optional, Union
-
+from pathlib import Path
 import numpy as np
 import scipy.linalg as slin
 import scipy.sparse as sp
@@ -135,7 +135,7 @@ def save_linear_buckling_data(
     if not isinstance(kmat, xr.DataArray) or not isinstance(kgeo, xr.DataArray):
         raise TypeError("kmat and kgeo must be xarray.DataArray objects.")  # noqa: TRY003
 
-    output_filename = RESULTS_DIR + "/" + f"{BUCKLING_FILE_NAME}-{odb_tag}.{odb_format}"
+    output_filename = str(Path(RESULTS_DIR) / f"{BUCKLING_FILE_NAME}-{odb_tag}.{odb_format}")
     # -----------------------------------------------------------------
     model_info, _ = GetFEMData().get_model_info()
     if model_info == {}:
@@ -166,7 +166,7 @@ def load_linear_buckling_data(odb_tag: Union[str, int]):
     odb_format, odb_engine = CONFIGS.get_odb_format()
     kargs = {"consolidated": False} if odb_format.lower() == "zarr" else {}
 
-    filename = RESULTS_DIR + "/" + f"{BUCKLING_FILE_NAME}-{odb_tag}.{odb_format}"
+    filename = str(Path(RESULTS_DIR) / f"{BUCKLING_FILE_NAME}-{odb_tag}.{odb_format}")
     color = get_random_color()
     CONSOLE.print(f"{PKG_PREFIX} Loading Linear Buckling data from [bold {color}]{filename}[/] ...")
     with xr.open_datatree(filename, engine=odb_engine, **kargs).load() as dt:

@@ -3,6 +3,7 @@ This file contains functions to get data from the current domain of OpenSeesPy
 """
 
 import os
+from pathlib import Path
 import shutil
 import time
 from typing import Union
@@ -426,7 +427,7 @@ def save_model_data(
     MODEL_FILE_NAME = CONFIGS.get_model_filename()
     odb_format, _ = CONFIGS.get_odb_format()
 
-    output_filename = RESULTS_DIR + "/" + f"{MODEL_FILE_NAME}-{odb_tag}.{odb_format}"
+    output_filename = str(Path(RESULTS_DIR) / f"{MODEL_FILE_NAME}-{odb_tag}.{odb_format}")
     model_data = GetFEMData()
     model_info, cells = model_data.get_model_info()
     model_data = {}
@@ -500,7 +501,7 @@ def load_model_data(
     else:
         odb_format, odb_engine = CONFIGS.get_odb_format()
         kargs = {"consolidated": False} if odb_format.lower() == "zarr" else {}
-        filename = f"{RESULTS_DIR}/" + f"{MODEL_FILE_NAME}-{odb_tag}.{odb_format}"
+        filename = str(Path(RESULTS_DIR) / f"{MODEL_FILE_NAME}-{odb_tag}.{odb_format}")
         if not os.path.exists(filename):
             resave = True
         if resave:
